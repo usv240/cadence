@@ -1,0 +1,16 @@
+# Dependencies and build output
+node_modules/
+.next/
+out/
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+
+# TypeScript and editor artifacts
+*.tsbuildinfo
+*.log
+.DS_Store
+Thumbs.db
+.vscode/

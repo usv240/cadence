@@ -1,0 +1,23 @@
+import type { Tone } from "./conversation";
+import { getOpenAIClient, isMockMode } from "./openai";
+
+export type SpeakInput = { text: string; tone: Tone };
+
+const toneInstructions: Record<Tone, string> = {
+  warm: "Speak warmly and affectionately, with an easy, friendly pace.",
+  firm: "Speak clearly, confidently, and calmly, with a direct pace.",
+  funny: "Speak warmly with light, playful humor and a subtle smile in the delivery.",
+};
+
+export async function speak({ text, tone }: SpeakInput): Promise<Response | null> {
+  if (isMockMode()) return null;
+  const model = process.env.TTS_MODEL || "gpt-4o-mini-tts";
+  const voice = process.env.TTS_VOICE || "marin";
+  return getOpenAIClient().audio.speech.create({
+    model,
+    voice,
+    input: text,
+    response_format: "mp3",
+    ...(model.startsWith("tts-1") ? {} : { instructions: toneInstructions[tone] }),
+  });
+}
