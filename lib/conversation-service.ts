@@ -8,6 +8,7 @@ import type { StyleInput, StyleOutput } from "./style-card";
 import type { PersonalProfile } from "./profile";
 import type { ConversationMemory } from "./memory";
 import type { ConversationSettings } from "./conversation-settings";
+import type { TtsVoice } from "./voices";
 
 let activeAudio: HTMLAudioElement | null = null;
 let activeAudioUrl: string | null = null;
@@ -17,6 +18,13 @@ export class RealModeConsentRequiredError extends Error {
   constructor() {
     super("Real-mode consent is required.");
     this.name = "RealModeConsentRequiredError";
+  }
+}
+
+export class RequestTimeoutError extends Error {
+  constructor() {
+    super("Cadence is taking longer than expected. Please try again, or use local replies.");
+    this.name = "RequestTimeoutError";
   }
 }
 
@@ -32,13 +40,34 @@ function requestHeaders() {
   };
 }
 
-function speakWithDevice(text: string, tone: Tone, delivery?: "needs") {
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number, externalSignal?: AbortSignal) {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const abortFromCaller = () => controller.abort();
+  externalSignal?.addEventListener("abort", abortFromCaller, { once: true });
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (timedOut) throw new RequestTimeoutError();
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+    externalSignal?.removeEventListener("abort", abortFromCaller);
+  }
+}
+
+function speakWithDevice(text: string, tone: Tone, delivery?: "needs", onPlaybackStarted?: () => void) {
   if (!("speechSynthesis" in window)) throw new Error("Speech is unavailable offline on this device.");
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = delivery === "needs" || tone === "firm" ? 0.9 : 1;
   utterance.pitch = tone === "funny" ? 1.08 : 1;
   window.speechSynthesis.speak(utterance);
+  onPlaybackStarted?.();
 }
 
 function clearActiveAudio() {
@@ -54,14 +83,18 @@ export interface ConversationService {
   expand(input: { keyword: string; transcript: TranscriptInput[]; styleCard: string; profile?: PersonalProfile }): Promise<ExpandOutput>;
   toneAdjust(input: { text: string; tone: Tone }): Promise<ToneAdjustOutput>;
   style(input: StyleInput): Promise<StyleOutput>;
-  speak(text: string, tone: Tone, delivery?: "needs"): Promise<void>;
+  speak(text: string, tone: Tone, delivery?: "needs", voice?: TtsVoice, onPlaybackStarted?: () => void): Promise<void>;
   stopSpeaking(): void;
   transcribe(previousText?: string): Promise<TranscriptTurn>;
 }
 
 async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(path, { method: "POST", headers: requestHeaders(), body: JSON.stringify(body), signal });
+  const response = await fetchWithTimeout(path, { method: "POST", headers: requestHeaders(), body: JSON.stringify(body) }, 25_000, signal);
   if (response.status === 428) throw realModeConsentRequired();
+  if (response.status === 429) {
+    const retryAfterSeconds = Number(response.headers.get("Retry-After"));
+    throw new Error(Number.isFinite(retryAfterSeconds) ? `Cadence needs a short pause. Try again in ${retryAfterSeconds} seconds.` : "Cadence needs a short pause. Please try again shortly.");
+  }
   if (!response.ok) {
     const detail = await response.json().catch(() => ({ error: "Unable to generate a reply." })) as { error?: string };
     throw new Error(detail.error ?? "Unable to generate a reply.");
@@ -75,22 +108,26 @@ export const conversationService: ConversationService = {
   expand: (input) => postJson<ExpandOutput>("/api/expand", input),
   toneAdjust: (input) => postJson<ToneAdjustOutput>("/api/tone", input),
   style: (input) => postJson<StyleOutput>("/api/style", input),
-  async speak(text, tone, delivery) {
+  async speak(text, tone, delivery, voice, onPlaybackStarted) {
     if (!navigator.onLine) {
-      speakWithDevice(text, tone, delivery);
+      speakWithDevice(text, tone, delivery, onPlaybackStarted);
       return;
     }
     let response: Response;
     try {
-      response = await fetch("/api/speak", { method: "POST", headers: requestHeaders(), body: JSON.stringify({ text, tone, delivery }) });
+      response = await fetchWithTimeout("/api/speak", { method: "POST", headers: requestHeaders(), body: JSON.stringify({ text, tone, delivery, voice }) }, 35_000);
     } catch {
-      speakWithDevice(text, tone, delivery);
+      speakWithDevice(text, tone, delivery, onPlaybackStarted);
       return;
     }
     if (response.status === 204) {
       return;
     }
     if (response.status === 428) throw realModeConsentRequired();
+    if (response.status === 429) {
+      const retryAfterSeconds = Number(response.headers.get("Retry-After"));
+      throw new Error(Number.isFinite(retryAfterSeconds) ? `Cadence needs a short pause. Try speech again in ${retryAfterSeconds} seconds.` : "Cadence needs a short pause. Please try speech again shortly.");
+    }
     if (!response.ok) {
       const detail = await response.json().catch(() => ({ error: "Unable to speak this reply." })) as { error?: string };
       throw new Error(detail.error ?? "Unable to speak this reply.");
@@ -101,6 +138,7 @@ export const conversationService: ConversationService = {
     activeAudio.onended = clearActiveAudio;
     activeAudio.onerror = clearActiveAudio;
     await activeAudio.play();
+    onPlaybackStarted?.();
     await new Promise<void>((resolve, reject) => {
       completeActiveAudio = resolve;
       if (!activeAudio) { resolve(); return; }

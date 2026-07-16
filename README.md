@@ -104,7 +104,7 @@ TTS_VOICE=marin
 | `MOCK_MODE` | No | Set `1` for local mocks; set `0` for real OpenAI generation and TTS. |
 | `OPENAI_API_KEY` | Real mode | Server-only key for OpenAI Responses and Audio Speech. |
 | `TTS_MODEL` | No | OpenAI text-to-speech model; defaults to `gpt-4o-mini-tts`. |
-| `TTS_VOICE` | No | OpenAI voice; defaults to `marin`. |
+| `TTS_VOICE` | No | Default OpenAI voice; defaults to `marin`. A user can choose a built-in voice locally in **More → Speaking voice** without changing this variable. |
 
 Never expose an API key through `NEXT_PUBLIC_*`, client code, screenshots, or commits.
 

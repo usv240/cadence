@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { transcribe, transcribeOnce, type BrowserTranscriber, type LiveTranscriptionStatus } from "@/lib/browser-transcribe";
-import { candidatesToSuggestions, conversationService, RealModeConsentRequiredError } from "@/lib/conversation-service";
+import { candidatesToSuggestions, conversationService, RealModeConsentRequiredError, RequestTimeoutError } from "@/lib/conversation-service";
 import { neutralStyleCard } from "@/lib/style-card";
 import { AAC_TYPING_WORDS_PER_MINUTE, calculateReplyImpact, calculateSessionImpact } from "@/lib/impact";
 import { emptyPersonalProfile, type PersonalProfile } from "@/lib/profile";
@@ -13,6 +13,7 @@ import { appendDebugEvent, debugEnabledKey, debugLogKey, readDebugEvents, type D
 import { emptyReplyPreferences, sanitizeReplyPreferences, type ReplyPreferences } from "@/lib/reply-preferences";
 import { defaultConversationSettings, sanitizeConversationSettings, type ConversationSettings } from "@/lib/conversation-settings";
 import { offlineExpand, offlineInitiate, offlinePredict, offlineToneAdjust } from "@/lib/offline-fallback";
+import { defaultTtsVoice, isTtsVoice, ttsVoiceOptions, type TtsVoice } from "@/lib/voices";
 import type { ParticipationEvent } from "@/lib/participation";
 import type { Candidate, SpokenItem, Suggestion, Tone, TranscriptInput, TranscriptTurn } from "@/lib/conversation";
 
@@ -71,6 +72,11 @@ export default function Home() {
   const [showFeelingControls, setShowFeelingControls] = useState(false);
   const [composerMode, setComposerMode] = useState<"generate" | "speak">("generate");
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speechStatus, setSpeechStatus] = useState<"idle" | "preparing" | "playing">("idle");
+  const [listeningFeedback, setListeningFeedback] = useState("");
+  const [ttsVoice, setTtsVoice] = useState<TtsVoice>(defaultTtsVoice);
+  const [showVoicePicker, setShowVoicePicker] = useState(false);
+  const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
   const [showSpoken, setShowSpoken] = useState(false);
   const [isScanningMode, setIsScanningMode] = useState(false);
   const [scanIndex, setScanIndex] = useState(0);
@@ -107,6 +113,7 @@ export default function Home() {
   const conversationSettingsRef = useRef<ConversationSettings>(defaultConversationSettings);
   const replyFeedbackRef = useRef<"more_like_me" | undefined>();
   const lastPartnerTurnAt = useRef(Date.now());
+  const speakingRef = useRef(false);
 
   const recordDebugEvent = useCallback((type: string, data?: Record<string, unknown>) => {
     if (!debugEnabledRef.current) return;
@@ -117,6 +124,7 @@ export default function Home() {
   }, []);
 
   const isConsentRequired = useCallback((serviceError: unknown) => serviceError instanceof RealModeConsentRequiredError, []);
+  const shouldUseLocalFallback = useCallback((serviceError: unknown) => !navigator.onLine || serviceError instanceof RequestTimeoutError || serviceError instanceof TypeError, []);
 
   useEffect(() => {
     const openPrivacyNotice = () => setShowPrivacy(true);
@@ -158,6 +166,18 @@ export default function Home() {
       if (signal?.aborted || (predictionError instanceof DOMException && predictionError.name === "AbortError")) return;
       if (version === requestVersion.current) {
         if (isConsentRequired(predictionError)) return;
+        if (shouldUseLocalFallback(predictionError)) {
+          const settings = conversationSettingsRef.current;
+          const candidates = offlinePredict({ transcript: sourceTranscript, profile: profileRef.current, memory: memoryRef.current, count: settings.energy === "low" ? 2 : 4 });
+          const predictions = candidatesToSuggestions(candidates).filter((candidate) => !replyPreferencesRef.current.blockedPhrases.some((phrase) => candidate.text.toLocaleLowerCase().includes(phrase.toLocaleLowerCase())));
+          setBaseSuggestions(predictions);
+          setSuggestions(predictions);
+          setSuggestionMode("reply");
+          setPredictionStatus("ready");
+          setError("Live replies are unavailable right now. Showing local replies instead.");
+          recordDebugEvent("prediction_recovered_offline", { reason: predictionError instanceof Error ? predictionError.name : "network" });
+          return;
+        }
         const message = "Replies unavailable—use quick phrases or your saved replies.";
         setError(message);
         recordDebugEvent("prediction_failed", { message });
@@ -165,7 +185,7 @@ export default function Home() {
     } finally {
       if (version === requestVersion.current) setIsRefreshing(false);
     }
-  }, [isConsentRequired, recordDebugEvent]);
+  }, [isConsentRequired, recordDebugEvent, shouldUseLocalFallback]);
 
   const queueSpeculativePrediction = useCallback((sourceTranscript: TranscriptInput[]) => {
     if (prefetchTimer.current) window.clearTimeout(prefetchTimer.current);
@@ -216,6 +236,8 @@ export default function Home() {
     setHasRealModeConsent(window.localStorage.getItem("cadence.realModeConsent") === "1");
     const savedTone = window.localStorage.getItem("cadence.tone");
     if (savedTone === "warm" || savedTone === "firm" || savedTone === "funny") setTone(savedTone);
+    const savedVoice = window.localStorage.getItem("cadence.ttsVoice");
+    if (isTtsVoice(savedVoice)) setTtsVoice(savedVoice);
     const savedSuggestions = window.localStorage.getItem("cadence.lastSuggestions");
     if (savedSuggestions) {
       try {
@@ -276,9 +298,13 @@ export default function Home() {
 
   useEffect(() => {
     liveTranscriber.current = transcribe(
-      (text, confidence) => appendPartnerTurn({ id: crypto.randomUUID(), speaker: "Room", text, time: currentTime(), color: "blue", confidence, isUncertain: typeof confidence === "number" && confidence < TRANSCRIPT_CONFIDENCE_THRESHOLD }),
+      (text, confidence) => {
+        setListeningFeedback("Heard that — preparing replies.");
+        appendPartnerTurn({ id: crypto.randomUUID(), speaker: "Room", text, time: currentTime(), color: "blue", confidence, isUncertain: typeof confidence === "number" && confidence < TRANSCRIPT_CONFIDENCE_THRESHOLD });
+      },
       setListenStatus,
       setError,
+      (text) => setListeningFeedback(`Hearing: ${text}`),
     );
     return () => liveTranscriber.current?.stop();
   }, [appendPartnerTurn]);
@@ -310,7 +336,12 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    if (!("serviceWorker" in navigator)) return;
+    if (process.env.NODE_ENV === "production") {
+      void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      return;
+    }
+    void navigator.serviceWorker.getRegistrations().then((registrations) => Promise.all(registrations.map((registration) => registration.unregister()))).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -368,6 +399,7 @@ export default function Home() {
   }, [queueSpeculativePrediction, recordDebugEvent]);
 
   const addSpoken = useCallback(async (text: string, delivery?: "needs", toneOverride: Tone = tone, source = "direct") => {
+    if (speakingRef.current) return;
     const matchingSuggestion = source === "direct" ? suggestions.find((suggestion) => suggestion.text === text) : undefined;
     if (matchingSuggestion && replyPreferencesRef.current.previewBeforeSpeaking) {
       setSelectedSuggestion(matchingSuggestion);
@@ -383,8 +415,10 @@ export default function Home() {
       setShowFirstSpeechAffirmation(true);
     }
     try {
+      speakingRef.current = true;
       setIsSpeaking(true);
-      await conversationService.speak(text, toneOverride, delivery);
+      setSpeechStatus("preparing");
+      await conversationService.speak(text, toneOverride, delivery, ttsVoice, () => setSpeechStatus("playing"));
       recordDebugEvent("speech_completed", { text, tone: toneOverride, delivery, source });
     } catch (speakError) {
       if (isConsentRequired(speakError)) return;
@@ -392,9 +426,11 @@ export default function Home() {
       setError(message);
       recordDebugEvent("speech_failed", { text, message, source });
     } finally {
+      speakingRef.current = false;
       setIsSpeaking(false);
+      setSpeechStatus("idle");
     }
-  }, [isConsentRequired, recordDebugEvent, suggestionMode, suggestions, tone]);
+  }, [isConsentRequired, recordDebugEvent, suggestionMode, suggestions, tone, ttsVoice]);
 
   const saveConversationSettings = useCallback((nextSettings: ConversationSettings) => {
     const cleaned = sanitizeConversationSettings(nextSettings);
@@ -452,6 +488,7 @@ export default function Home() {
 
   const stopSpeaking = useCallback(() => {
     conversationService.stopSpeaking();
+    setSpeechStatus("idle");
     recordDebugEvent("speech_stopped");
   }, [recordDebugEvent]);
 
@@ -478,6 +515,24 @@ export default function Home() {
     setFeelings(cleaned);
     recordDebugEvent("feelings_saved", { feelings: cleaned });
   }, [recordDebugEvent]);
+
+  const selectTtsVoice = (nextVoice: TtsVoice) => {
+    window.localStorage.setItem("cadence.ttsVoice", nextVoice);
+    setTtsVoice(nextVoice);
+    setShowVoicePicker(false);
+    recordDebugEvent("tts_voice_changed", { voice: nextVoice });
+  };
+
+  const previewTtsVoice = async (voice: TtsVoice) => {
+    setIsPreviewingVoice(true);
+    try {
+      await conversationService.speak("Hello. This is how I sound in Cadence.", tone, undefined, voice);
+    } catch (previewError) {
+      if (!isConsentRequired(previewError)) setError(previewError instanceof Error ? previewError.message : "Unable to preview this voice.");
+    } finally {
+      setIsPreviewingVoice(false);
+    }
+  };
 
   const scanTargets = useMemo(() => [
     ...suggestions.map((suggestion) => ({ id: `suggestion-${suggestion.id}`, label: `${suggestion.label} reply: ${suggestion.text}`, select: () => void addSpoken(suggestion.text, undefined, undefined, "scan_suggestion") })),
@@ -549,9 +604,11 @@ export default function Home() {
     if (listenStatus === "listening") {
       recordDebugEvent("listening_changed", { enabled: false });
       controller.stop();
+      setListeningFeedback("");
     } else {
       recordDebugEvent("listening_changed", { enabled: true });
       controller.start();
+      setListeningFeedback("Listening for the room…");
     }
   };
 
@@ -574,6 +631,13 @@ export default function Home() {
       recordDebugEvent("tone_adjustment_completed", { tone: nextTone, suggestions: adjusted });
     } catch (toneError) {
       if (isConsentRequired(toneError)) return;
+      if (shouldUseLocalFallback(toneError)) {
+        const adjusted = baseSuggestions.map((suggestion) => ({ ...suggestion, text: offlineToneAdjust(suggestion.text, nextTone) }));
+        setSuggestions(adjusted);
+        setError("Live tone changes are unavailable. Tone updated locally instead.");
+        recordDebugEvent("tone_adjustment_recovered_offline", { tone: nextTone });
+        return;
+      }
       const message = toneError instanceof Error ? toneError.message : "Unable to adjust the tone.";
       setError(message);
       recordDebugEvent("tone_adjustment_failed", { tone: nextTone, message });
@@ -612,6 +676,18 @@ export default function Home() {
       recordDebugEvent("keyword_expansion_completed", { keyword: steerKeyword, variants });
     } catch (expandError) {
       if (isConsentRequired(expandError)) return;
+      if (shouldUseLocalFallback(expandError)) {
+        const variants = offlineExpand(steerKeyword, transcriptForModel(), profile);
+        const expanded = candidatesToSuggestions(variants.map((text): Candidate => ({ text, intent: "other" })));
+        setBaseSuggestions(expanded);
+        setSuggestions(expanded);
+        setSuggestionMode("reply");
+        setKeyword("");
+        setPredictionStatus("ready");
+        setError("Live replies are unavailable. Made replies locally instead.");
+        recordDebugEvent("keyword_expansion_recovered_offline", { keyword: steerKeyword });
+        return;
+      }
       const message = expandError instanceof Error ? expandError.message : "Unable to create replies.";
       setError(message);
       recordDebugEvent("keyword_expansion_failed", { keyword, message });
@@ -688,6 +764,18 @@ export default function Home() {
       recordDebugEvent("initiation_completed", { candidates });
     } catch (initiateError) {
       if (isConsentRequired(initiateError)) return;
+      if (shouldUseLocalFallback(initiateError)) {
+        const candidates = offlineInitiate({ transcript: transcriptForModel(), profile, memory: memoryRef.current, keyword: steerKeyword?.trim() || undefined, count: conversationSettingsRef.current.energy === "low" ? 2 : 4 });
+        const starters = candidatesToSuggestions(candidates);
+        setBaseSuggestions(starters);
+        setSuggestions(starters);
+        setSuggestionMode("initiate");
+        setPredictionStatus("ready");
+        if (steerKeyword?.trim()) setKeyword("");
+        setError("Live starters are unavailable. Made conversation starters locally instead.");
+        recordDebugEvent("initiation_recovered_offline", { reason: initiateError instanceof Error ? initiateError.name : "network" });
+        return;
+      }
       const message = initiateError instanceof Error ? initiateError.message : "Unable to prepare conversation starters.";
       setError(message);
       recordDebugEvent("initiation_failed", { message });
@@ -733,13 +821,14 @@ export default function Home() {
       {isScanningMode && <p className="sr-only" aria-live="assertive" aria-atomic="true">Scanning {scanTargets[scanIndex]?.label}. Target {scanIndex + 1} of {scanTargets.length}. Press Space or Enter to select.</p>}
       {isScanningMode && <div className="fixed bottom-20 left-3 z-40 sm:bottom-4 sm:left-4"><button type="button" onClick={selectScannedTarget} className="min-h-14 rounded-2xl bg-[#f7d341] px-5 text-base font-black text-[#102823] shadow-xl ring-4 ring-[#102823] ring-offset-2 ring-offset-[#f5f7f4] transition hover:bg-[#ffe36b] focus:outline-none focus:ring-4 focus:ring-[#102823]">Select highlighted</button></div>}
       <div className="fixed bottom-3 left-3 z-40 flex items-center gap-2 sm:bottom-4 sm:left-4"><button type="button" onClick={() => { recordDebugEvent("needs_opened"); setShowNeeds(true); }} aria-haspopup="dialog" className={`min-h-12 rounded-full bg-[#305a4e] px-4 text-sm font-bold text-white shadow-xl transition hover:bg-[#23493e] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] sm:min-h-14 sm:px-5 sm:text-base ${highlightedTargetId === "open-needs" ? "scale-105 bg-[#f7d341] text-[#102823] ring-4 ring-[#102823] ring-offset-4 ring-offset-[#f5f7f4]" : ""}`}>My needs</button>{transcript.at(-1)?.isUncertain && <button type="button" onClick={() => setSelectedTranscriptTurn(transcript.at(-1) ?? null)} aria-label="Review uncertain caption" className="min-h-12 rounded-full bg-[#f7d341] px-3 text-sm font-black text-[#102823] shadow-lg focus:outline-none focus:ring-4 focus:ring-[#173d3a] sm:min-h-14">Fix caption</button>}<button type="button" onClick={() => setShowBackupBoard(true)} aria-haspopup="dialog" aria-label="Open offline backup board" className="grid min-h-12 min-w-12 place-items-center rounded-full border border-[#b9d4c5] bg-white px-3 text-sm font-black text-[#305a4e] shadow-lg hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] sm:min-h-14">▦</button></div>
-      <div className="fixed bottom-3 right-3 z-40 flex items-center gap-2">{isSpeaking && <button type="button" onClick={stopSpeaking} aria-label="Stop speaking audio" className="min-h-12 rounded-full border border-[#b9cfc2] bg-white px-3 text-sm font-bold text-[#315a4b] shadow-lg hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] sm:min-h-14">Stop</button>}<button type="button" onClick={holdTheFloor} aria-label="Hold the floor and speak a response placeholder" className={`min-h-12 rounded-full bg-[#1f7a57] px-4 text-sm font-bold text-white shadow-xl transition hover:bg-[#176746] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] sm:min-h-14 sm:px-5 sm:text-base ${highlightedTargetId === "hold-floor" ? "scale-105 bg-[#f7d341] text-[#102823] ring-[#102823] ring-offset-4 ring-offset-[#f5f7f4]" : ""}`}>Hold the floor</button></div>
+      <div className="fixed bottom-3 right-3 z-40 flex items-center gap-2" aria-live="polite">{isSpeaking && <><span className="hidden rounded-full bg-[#102823] px-3 py-2 text-xs font-bold text-white shadow-lg sm:inline">{speechStatus === "preparing" ? "Getting voice ready…" : "Speaking…"}</span><button type="button" onClick={stopSpeaking} aria-label="Stop speaking audio" className="min-h-12 rounded-full border border-[#b9cfc2] bg-white px-3 text-sm font-bold text-[#315a4b] shadow-lg hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] sm:min-h-14">Stop</button></>}<button type="button" onClick={holdTheFloor} aria-label="Hold the floor and speak a response placeholder" disabled={isSpeaking} className={`min-h-12 rounded-full bg-[#1f7a57] px-4 text-sm font-bold text-white shadow-xl transition hover:bg-[#176746] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:px-5 sm:text-base ${highlightedTargetId === "hold-floor" ? "scale-105 bg-[#f7d341] text-[#102823] ring-[#102823] ring-offset-4 ring-offset-[#f5f7f4]" : ""}`}>{isSpeaking ? "Speaking…" : "Hold the floor"}</button></div>
       {showOnboarding && <Onboarding onStart={() => { window.localStorage.setItem("cadence.onboardingComplete", "1"); setShowOnboarding(false); }} onTour={() => { window.localStorage.setItem("cadence.onboardingComplete", "1"); setShowOnboarding(false); setTutorialStep(0); }} onSetupVoice={() => { window.localStorage.setItem("cadence.onboardingComplete", "1"); setShowOnboarding(false); setShowVoiceSetup(true); }} onSetupProfile={() => { window.localStorage.setItem("cadence.onboardingComplete", "1"); setShowOnboarding(false); setShowProfileSetup(true); }} />}
       {showFirstSpeechAffirmation && <FirstSpeechAffirmation onDismiss={() => setShowFirstSpeechAffirmation(false)} />}
       {showVoiceSetup && <VoiceSetup initialStyleCard={styleCard} hasLearnedStyle={hasLearnedStyle} onClose={() => setShowVoiceSetup(false)} onSave={(nextStyleCard) => { styleCardRef.current = nextStyleCard; window.localStorage.setItem("cadence.styleCard", nextStyleCard); setStyleCard(nextStyleCard); setHasLearnedStyle(true); recordDebugEvent("voice_style_saved", { styleCard: nextStyleCard }); }} />}
       {showProfileSetup && <ProfileSetup initialProfile={profile} onClose={() => setShowProfileSetup(false)} onChange={persistProfile} onSave={(nextProfile) => { persistProfile(nextProfile); setShowProfileSetup(false); recordDebugEvent("personal_details_saved", { profile: nextProfile }); refreshPredictions(transcriptForModel()); }} />}
       {showConversationSetup && <ConversationSetup initialSettings={conversationSettings} onClose={() => setShowConversationSetup(false)} onChange={persistConversationSettings} onSave={(settings) => { saveConversationSettings(settings); setShowConversationSetup(false); }} />}
       {showPrivacy && <PrivacyDialog hasRealModeConsent={hasRealModeConsent} onClose={() => setShowPrivacy(false)} onConsent={grantRealModeConsent} onErase={eraseLocalData} />}
+      {showVoicePicker && <VoicePicker selectedVoice={ttsVoice} isPreviewing={isPreviewingVoice} onClose={() => setShowVoicePicker(false)} onPreview={previewTtsVoice} onSelect={selectTtsVoice} />}
       {showMemory && <MemoryDialog memory={memory} onClose={() => setShowMemory(false)} onClear={() => { memoryRef.current = emptyConversationMemory; window.localStorage.setItem("cadence.memory", JSON.stringify(emptyConversationMemory)); setMemory(emptyConversationMemory); }} />}
       {showBackupBoard && <BackupBoardDialog needs={needs} feelings={feelings} favorites={replyPreferences.favorites} profile={profile} onClose={() => setShowBackupBoard(false)} onSpeak={(text) => void addSpoken(text, undefined, undefined, "backup_board")} />}
       {selectedTranscriptTurn && <TranscriptRepairDialog turn={selectedTranscriptTurn} onClose={() => setSelectedTranscriptTurn(null)} onConfirm={confirmTranscriptTurn} />}
@@ -753,16 +842,31 @@ export default function Home() {
       <div className="mx-auto max-w-[1440px]">
         <header className="relative flex items-center justify-between gap-2 border-b border-[#dbe5de] pb-3 sm:gap-3 sm:pb-4">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#173d3a] text-base font-bold text-white sm:h-11 sm:w-11 sm:rounded-2xl sm:text-lg" aria-hidden="true">C</div><div className="min-w-0"><p className="text-lg font-bold tracking-tight sm:text-xl">Cadence</p><p className="truncate text-xs font-medium text-[#60766e] sm:text-sm">Dinner at Maya&apos;s <span className="mx-1 text-[#a9bbb1]">/</span> Live</p></div></div>
-          <div className="flex shrink-0 items-center gap-2"><button type="button" onClick={toggleListening} aria-pressed={listenStatus === "listening"} aria-label={listenStatus === "listening" ? "Turn listening off" : "Turn listening on"} className={`flex min-h-12 items-center gap-2 rounded-full px-4 text-sm font-bold transition focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] ${listenStatus === "listening" ? "bg-[#1f7a57] text-white" : "bg-[#173d3a] text-white hover:bg-[#28534e]"}`}><span className={`h-2.5 w-2.5 rounded-full ${listenStatus === "listening" ? "animate-pulse bg-[#a6e3c3]" : "bg-[#c6d3cd]"}`} />{listenStatus === "listening" ? "Listening" : listenStatus === "unsupported" ? "Listen unavailable" : "Listen"}</button><div className="relative"><button type="button" onClick={() => setShowMore((open) => !open)} onKeyDown={(event) => { if (event.key === "Escape") setShowMore(false); }} aria-expanded={showMore} aria-controls="more-menu" className="min-h-12 rounded-full border border-[#cdd9d2] bg-white px-4 text-sm font-bold text-[#315a4b] transition hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">More</button>{showMore && <div id="more-menu" role="menu" className="absolute right-0 z-30 mt-2 w-56 rounded-2xl border border-[#d6e1da] bg-white p-2 shadow-xl"><button type="button" role="menuitem" onClick={() => { setShowVoiceSetup(true); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Your voice</button><button type="button" role="menuitem" onClick={() => { setShowProfileSetup(true); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Personal details</button><button type="button" role="menuitem" onClick={() => { setShowMemory(true); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">What Cadence remembers</button><button type="button" role="menuitem" onClick={() => { setShowDebugLog(true); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Debug session recording</button><button type="button" role="menuitem" onClick={() => { toggleScanningMode(); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">{isScanningMode ? "Turn scanning off" : "Scanning mode"}</button><button type="button" role="menuitem" onClick={() => { setIsDemoPlaying((playing) => !playing); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">{isDemoPlaying ? "Stop demo conversation" : "Play demo conversation"}</button><button type="button" role="menuitem" onClick={() => { setShowAbout(true); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">About</button></div>}</div></div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button type="button" onClick={toggleListening} aria-pressed={listenStatus === "listening"} aria-label={listenStatus === "listening" ? "Turn listening off" : "Turn listening on"} className={`listen-toggle flex min-h-12 items-center gap-2 rounded-full px-4 text-sm font-bold transition focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] ${listenStatus === "listening" ? "listen-toggle-on" : "listen-toggle-off"}`}><span className={`listen-indicator h-2.5 w-2.5 rounded-full ${listenStatus === "listening" ? "animate-pulse" : ""}`} />{listenStatus === "listening" ? "Listening" : listenStatus === "unsupported" ? "Listen unavailable" : "Listen"}</button>
+            <div className="relative">
+              <button type="button" onClick={() => setShowMore((open) => !open)} onKeyDown={(event) => { if (event.key === "Escape") setShowMore(false); }} aria-expanded={showMore} aria-controls="more-menu" className="min-h-12 rounded-full border border-[#cdd9d2] bg-white px-4 text-sm font-bold text-[#315a4b] transition hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">More</button>
+              {showMore && <div id="more-menu" role="menu" className="absolute right-0 z-30 mt-2 w-56 rounded-2xl border border-[#d6e1da] bg-white p-2 shadow-xl">
+                <button type="button" role="menuitem" onClick={() => { setShowVoicePicker(true); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Speaking voice: {ttsVoice}</button>
+                <button type="button" role="menuitem" onClick={() => { setShowVoiceSetup(true); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Your voice</button>
+                <button type="button" role="menuitem" onClick={() => { setShowProfileSetup(true); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Personal details</button>
+                <button type="button" role="menuitem" onClick={() => { setShowMemory(true); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">What Cadence remembers</button>
+                <button type="button" role="menuitem" onClick={() => { setShowDebugLog(true); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Debug session recording</button>
+                <button type="button" role="menuitem" onClick={() => { toggleScanningMode(); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">{isScanningMode ? "Turn scanning off" : "Scanning mode"}</button>
+                <button type="button" role="menuitem" onClick={() => { setIsDemoPlaying((playing) => !playing); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">{isDemoPlaying ? "Stop demo conversation" : "Play demo conversation"}</button>
+                <button type="button" role="menuitem" onClick={() => { setShowAbout(true); setShowMore(false); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-bold text-[#294841] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">About</button>
+              </div>}
+            </div>
+          </div>
         </header>
 
         <div className="mt-2 flex items-center justify-between gap-2"><button type="button" onClick={resetDemo} className="min-h-10 rounded-xl px-3 text-xs font-bold text-[#1f7a57] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Reset demo</button><div className="flex items-center gap-1"><button type="button" onClick={() => setShowPrivacy(true)} className="min-h-10 rounded-xl px-3 text-xs font-bold text-[#315a4b] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Privacy</button><button type="button" onClick={toggleTheme} aria-pressed={theme === "dark"} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} className="min-h-10 rounded-xl px-3 text-xs font-bold text-[#315a4b] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">{theme === "dark" ? "Light mode" : "Dark mode"}</button></div></div>
         {!isOnline && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#fff3e6] px-4 py-3 text-sm font-semibold text-[#80511c]" role="status"><p><span className="font-black">Offline mode.</span> Your local replies, quick phrases, needs, and device speech are ready.</p><button type="button" onClick={() => setShowBackupBoard(true)} className="min-h-11 rounded-xl border border-[#d69a4d] bg-white px-3 text-sm font-bold text-[#80511c] hover:bg-[#fff8ee] focus:outline-none focus:ring-4 focus:ring-[#f2c98d]">Open essentials</button></div>}
         <div className="mt-4 grid gap-5 sm:mt-6 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_310px]">
           <section className="min-w-0" aria-label="Communication companion">
-            <section className="rounded-2xl border border-[#dce6df] bg-white p-3 sm:rounded-3xl sm:p-5" aria-labelledby="transcript-heading"><div className="flex items-center justify-between gap-3"><div><p className="eyebrow text-[0.65rem] sm:text-[0.72rem]">Room transcript</p><h2 id="transcript-heading" className="mt-0.5 text-base font-bold sm:mt-1 sm:text-lg">What&apos;s being said</h2></div><span className="rounded-full bg-[#f1f5f2] px-2.5 py-1 text-[11px] font-bold text-[#54706b] sm:px-3 sm:py-1.5 sm:text-xs">{listenStatus === "listening" ? "Listening" : isDemoPlaying ? "Demo playing" : "Waiting"}</span></div><p className="mt-2 truncate text-sm text-[#4b675e] sm:hidden"><span className="font-bold text-[#294841]">{transcript.at(-1)?.speaker}:</span> {transcript.at(-1)?.text}</p><div className="mt-3 hidden max-h-44 space-y-2 overflow-y-auto pr-1 sm:block" aria-live="polite" aria-relevant="additions">{transcript.map((turn, index) => <TranscriptLine key={turn.id} turn={turn} isLatest={index === transcript.length - 1} />)}<div ref={transcriptEnd} /></div></section>
+            <section className="rounded-2xl border border-[#dce6df] bg-white p-3 sm:rounded-3xl sm:p-5" aria-labelledby="transcript-heading"><div className="flex items-center justify-between gap-3"><div><p className="eyebrow text-[0.65rem] sm:text-[0.72rem]">Room transcript</p><h2 id="transcript-heading" className="mt-0.5 text-base font-bold sm:mt-1 sm:text-lg">What&apos;s being said</h2></div><span className="rounded-full bg-[#f1f5f2] px-2.5 py-1 text-[11px] font-bold text-[#54706b] sm:px-3 sm:py-1.5 sm:text-xs" role="status">{listenStatus === "listening" ? "Listening" : isDemoPlaying ? "Demo playing" : "Waiting"}</span></div>{listenStatus === "listening" && listeningFeedback && <p className="mt-2 truncate text-xs font-semibold text-[#176746]" role="status">{listeningFeedback}</p>}<p className="mt-2 truncate text-sm text-[#4b675e] sm:hidden"><span className="font-bold text-[#294841]">{transcript.at(-1)?.speaker}:</span> {transcript.at(-1)?.text}</p><div className="mt-3 hidden max-h-44 space-y-2 overflow-y-auto pr-1 sm:block" aria-live="polite" aria-relevant="additions">{transcript.map((turn, index) => <TranscriptLine key={turn.id} turn={turn} isLatest={index === transcript.length - 1} />)}<div ref={transcriptEnd} /></div></section>
 
-            <section id="replies" className="mt-4 scroll-mt-4 sm:mt-8" aria-labelledby="replies-heading"><div className="flex flex-wrap items-end justify-between gap-2 sm:gap-3"><div><p className="eyebrow text-[0.65rem] sm:text-[0.72rem]">{suggestionMode === "initiate" ? "Your opening" : "Your next thought"}</p><h1 id="replies-heading" className="mt-0.5 text-xl font-bold tracking-tight sm:mt-1 sm:text-3xl">{suggestionMode === "initiate" ? "Start the conversation" : "Choose a reply"}</h1><p className="mt-0.5 text-sm text-[#54706b] sm:mt-1 sm:text-base">{suggestionMode === "initiate" ? "Tap an opener to speak it." : "Tap a reply to speak it."}</p></div><div className="flex flex-wrap items-center gap-1 sm:gap-2"><button type="button" onClick={() => void startSomething()} disabled={isInitiating} className="min-h-10 rounded-xl bg-[#1f7a57] px-2.5 text-sm font-bold text-white hover:bg-[#176746] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] disabled:opacity-60 sm:min-h-11 sm:px-3">{isInitiating ? "Starting" : "Start something"}</button><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold sm:px-3 sm:py-1.5 sm:text-xs ${predictionStatus === "ready" ? "bg-[#e3f4eb] text-[#176746]" : "bg-[#f1f5f2] text-[#54706b]"}`} role="status">{predictionStatus === "ready" ? "Ready" : "Preparing"}</span><button type="button" onClick={() => refreshPredictions(transcriptForModel())} disabled={isRefreshing} className="min-h-10 rounded-xl px-2.5 text-sm font-bold text-[#315a4b] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] disabled:opacity-60 sm:min-h-11 sm:px-3">{isRefreshing ? "Refreshing" : "Refresh"}</button></div></div>{isScanningMode && <p className="mt-3 rounded-2xl bg-[#102823] px-4 py-3 text-sm font-bold text-white" role="status">Scanning is on. Press Space or Enter to speak the highlighted choice.</p>}<div className={`mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 xl:grid-cols-4 ${predictionStatus === "ready" ? "motion-safe:animate-[pulse_0.55s_ease-out_1]" : ""}`}>{suggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} onSpeak={addSpoken} isScanningHighlighted={highlightedTargetId === `suggestion-${suggestion.id}`} />)}</div>{error && <p className="mt-4 rounded-xl bg-[#fff0eb] px-4 py-3 text-sm font-semibold text-[#9a3c1b]" role="alert">{error}</p>}</section>
+            <section id="replies" className="mt-4 scroll-mt-4 sm:mt-8" aria-labelledby="replies-heading"><div className="flex flex-wrap items-end justify-between gap-2 sm:gap-3"><div><p className="eyebrow text-[0.65rem] sm:text-[0.72rem]">{suggestionMode === "initiate" ? "Your opening" : "Your next thought"}</p><h1 id="replies-heading" className="mt-0.5 text-xl font-bold tracking-tight sm:mt-1 sm:text-3xl">{suggestionMode === "initiate" ? "Start the conversation" : "Choose a reply"}</h1><p className="mt-0.5 text-sm text-[#54706b] sm:mt-1 sm:text-base">{suggestionMode === "initiate" ? "Tap an opener to speak it." : "Tap a reply to speak it."}</p></div><div className="flex flex-wrap items-center gap-1 sm:gap-2"><button type="button" onClick={() => void startSomething()} disabled={isInitiating} className="min-h-10 rounded-xl bg-[#1f7a57] px-2.5 text-sm font-bold text-white hover:bg-[#176746] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] disabled:opacity-60 sm:min-h-11 sm:px-3">{isInitiating ? "Starting" : "Start something"}</button><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold sm:px-3 sm:py-1.5 sm:text-xs ${predictionStatus === "ready" ? "bg-[#e3f4eb] text-[#176746]" : "bg-[#f1f5f2] text-[#54706b]"}`} role="status">{predictionStatus === "ready" ? "Ready" : "Preparing replies…"}</span><button type="button" onClick={() => refreshPredictions(transcriptForModel())} disabled={isRefreshing} className="min-h-10 rounded-xl px-2.5 text-sm font-bold text-[#315a4b] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] disabled:opacity-60 sm:min-h-11 sm:px-3">{isRefreshing ? "Preparing…" : "Refresh"}</button></div></div>{predictionStatus === "preparing" && <p className="mt-2 text-xs font-semibold text-[#54706b]" role="status">Keeping your current replies ready while Cadence prepares the next set.</p>}{isScanningMode && <p className="mt-3 rounded-2xl bg-[#102823] px-4 py-3 text-sm font-bold text-white" role="status">Scanning is on. Press Space or Enter to speak the highlighted choice.</p>}<div className={`mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 xl:grid-cols-4 ${predictionStatus === "ready" ? "motion-safe:animate-[pulse_0.55s_ease-out_1]" : ""}`}>{suggestions.map((suggestion) => <SuggestionCard key={suggestion.id} suggestion={suggestion} onSpeak={addSpoken} disabled={isSpeaking} isScanningHighlighted={highlightedTargetId === `suggestion-${suggestion.id}`} />)}</div>{error && <p className="mt-4 rounded-xl bg-[#fff0eb] px-4 py-3 text-sm font-semibold text-[#9a3c1b]" role="alert">{error}</p>}</section>
 
             <section className="mt-5 rounded-3xl border border-[#dce6df] bg-white p-4 sm:mt-7 sm:p-5" aria-label="More ways to respond">
               <button type="button" onClick={() => setShowQuickControls((open) => !open)} aria-expanded={showQuickControls} aria-controls="quick-controls" className="flex min-h-12 w-full items-center justify-between text-left text-sm font-bold text-[#315a4b] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] lg:hidden"><span>More ways to respond</span><span aria-hidden="true">{showQuickControls ? "−" : "+"}</span></button>
@@ -790,7 +894,7 @@ function currentTime() { return new Intl.DateTimeFormat("en", { hour: "numeric",
 
 function TranscriptLine({ turn, isLatest }: { turn: TranscriptTurn; isLatest: boolean }) { return <article className={`gap-3 ${isLatest ? "flex" : "hidden sm:flex"}`}><div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#edf3ef] text-sm font-bold text-[#416158]">{turn.speaker[0]}</div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold">{turn.speaker}</p><time className="text-xs font-medium text-[#859992]">{turn.time}</time></div><p className="mt-0.5 text-sm leading-relaxed text-[#4b675e]">{turn.text}</p></div></article>; }
 
-function SuggestionCard({ suggestion, onSpeak, isScanningHighlighted = false }: { suggestion: Suggestion; onSpeak: (text: string) => Promise<void>; isScanningHighlighted?: boolean }) { const styles = { mint: "border-[#b9ddc8] bg-[#eaf8ef]", peach: "border-[#f1cfaa] bg-[#fff3e6]", sky: "border-[#c7dff3] bg-[#edf7ff]", lilac: "border-[#dfcff0] bg-[#f7f0fd]" }; return <button type="button" onClick={() => void onSpeak(suggestion.text)} aria-label={`Speak ${suggestion.label} reply: ${suggestion.text}`} aria-current={isScanningHighlighted || undefined} className={`group min-h-28 rounded-2xl border p-3 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#2b7a5b] sm:min-h-48 sm:rounded-3xl sm:p-5 ${styles[suggestion.accent]} ${isScanningHighlighted ? "scale-[1.02] bg-[#f7d341] text-[#102823] ring-4 ring-[#102823] ring-offset-4 ring-offset-[#f5f7f4] shadow-2xl" : ""}`}><span className="rounded-full bg-white/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#49625b] sm:py-1 sm:text-xs">{suggestion.label}</span><p className="mt-2 text-sm font-semibold leading-snug sm:mt-4 sm:text-lg sm:leading-relaxed">{suggestion.text}</p><span className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#1d654a] sm:mt-4 sm:text-sm" aria-hidden="true">Speak</span></button>; }
+function SuggestionCard({ suggestion, onSpeak, disabled = false, isScanningHighlighted = false }: { suggestion: Suggestion; onSpeak: (text: string) => Promise<void>; disabled?: boolean; isScanningHighlighted?: boolean }) { const styles = { mint: "reply-card-mint", peach: "reply-card-peach", sky: "reply-card-sky", lilac: "reply-card-lilac" }; return <button type="button" onClick={() => void onSpeak(suggestion.text)} disabled={disabled} aria-label={disabled ? "Cadence is speaking. Stop audio before choosing another reply." : `Speak ${suggestion.label} reply: ${suggestion.text}`} aria-current={isScanningHighlighted || undefined} className={`reply-card group min-h-28 rounded-2xl border p-3 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#2b7a5b] disabled:cursor-wait disabled:opacity-60 sm:min-h-48 sm:rounded-3xl sm:p-5 ${styles[suggestion.accent]} ${isScanningHighlighted ? "scale-[1.02] bg-[#f7d341] text-[#102823] ring-4 ring-[#102823] ring-offset-4 ring-offset-[#f5f7f4] shadow-2xl" : ""}`}><span className="reply-intent rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider sm:py-1 sm:text-xs">{suggestion.label}</span><p className="mt-2 text-sm font-semibold leading-snug sm:mt-4 sm:text-lg sm:leading-relaxed">{suggestion.text}</p><span className="reply-speak mt-2 inline-flex items-center gap-1 text-xs font-bold sm:mt-4 sm:text-sm" aria-hidden="true">{disabled ? "Speaking…" : "Speak"}</span></button>; }
 
 function QuickButton({ text, spokenText = text, onClick, isScanningHighlighted = false }: { text: string; spokenText?: string; onClick: (text: string) => Promise<void>; isScanningHighlighted?: boolean }) { return <button type="button" onClick={() => void onClick(spokenText)} aria-label={`Speak ${spokenText}`} aria-current={isScanningHighlighted || undefined} className={`min-h-11 rounded-xl border border-[#d5e0d9] bg-white px-4 text-sm font-bold text-[#416158] transition hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] ${isScanningHighlighted ? "scale-105 bg-[#f7d341] text-[#102823] ring-4 ring-[#102823] ring-offset-4 ring-offset-white shadow-lg" : ""}`}>{text}</button>; }
 
@@ -798,6 +902,11 @@ function Onboarding({ onStart, onTour, onSetupVoice, onSetupProfile }: { onStart
 
 function PrivacyDialog({ hasRealModeConsent, onClose, onConsent, onErase }: { hasRealModeConsent: boolean; onClose: () => void; onConsent: () => void; onErase: () => void }) {
   return <div className="fixed inset-0 z-[60] grid place-items-center bg-[#102823]/55 p-4" role="presentation"><section role="dialog" aria-modal="true" aria-labelledby="privacy-title" className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-2xl sm:p-8"><div className="flex items-start justify-between gap-4"><div><p className="eyebrow">Your data</p><h2 id="privacy-title" className="mt-2 text-2xl font-bold tracking-tight">Privacy and real mode</h2></div><button type="button" onClick={onClose} aria-label="Close privacy and data" className="grid h-11 w-11 place-items-center rounded-xl text-xl font-bold text-[#315a4b] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">×</button></div><p className="mt-4 text-sm leading-relaxed text-[#4e6960]">Cadence keeps your profile, voice card, quick phrases, settings, and memory in this browser. Mock mode stays on this device. When real mode is enabled, only the text needed for the action you choose is sent to OpenAI for replies, voice learning, rewrites, or speech.</p><p className="mt-3 text-sm leading-relaxed text-[#4e6960]">Real mode is optional. You can keep using local quick phrases, offline replies, and device speech without accepting it.</p><div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-[#e1ebe5] pt-5"><button type="button" onClick={onErase} className="min-h-12 rounded-xl border border-[#d9aaa0] px-4 font-bold text-[#9a3c1b] hover:bg-[#fff0eb] focus:outline-none focus:ring-4 focus:ring-[#f2c8bd]">Erase all local data</button><div className="flex gap-2"><button type="button" onClick={onClose} className="min-h-12 rounded-xl px-4 font-bold text-[#315a4b] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Close</button><button type="button" onClick={onConsent} className="min-h-12 rounded-xl bg-[#1f7a57] px-4 font-bold text-white focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">{hasRealModeConsent ? "Real mode accepted" : "I understand"}</button></div></div></section></div>;
+}
+
+function VoicePicker({ selectedVoice, isPreviewing, onClose, onPreview, onSelect }: { selectedVoice: TtsVoice; isPreviewing: boolean; onClose: () => void; onPreview: (voice: TtsVoice) => void; onSelect: (voice: TtsVoice) => void }) {
+  const [draftVoice, setDraftVoice] = useState(selectedVoice);
+  return <div className="fixed inset-0 z-[60] grid place-items-center bg-[#102823]/55 p-4" role="presentation"><section role="dialog" aria-modal="true" aria-labelledby="speaking-voice-title" className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-2xl sm:p-8"><div className="flex items-start justify-between gap-4"><div><p className="eyebrow">Speaking voice</p><h2 id="speaking-voice-title" className="mt-2 text-2xl font-bold tracking-tight">Choose how Cadence speaks.</h2></div><button type="button" onClick={onClose} aria-label="Close speaking voice picker" className="grid h-11 w-11 place-items-center rounded-xl text-xl font-bold text-[#315a4b] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">×</button></div><p className="mt-3 text-sm leading-relaxed text-[#4e6960]">Choose an OpenAI system voice. Your choice stays on this device and is used for every spoken reply.</p><div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">{ttsVoiceOptions.map((voice) => <button key={voice.id} type="button" onClick={() => setDraftVoice(voice.id)} aria-pressed={voice.id === draftVoice} className={`min-h-12 rounded-xl border px-3 text-left text-sm font-bold transition focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] ${voice.id === draftVoice ? "border-[#1f7a57] bg-[#e3f4eb] text-[#176746]" : "border-[#d5e0d9] bg-white text-[#315a4b] hover:bg-[#edf5ef]"}`}><span className="block">{voice.name}</span>{voice.recommended && <span className="mt-0.5 block text-[11px] font-semibold opacity-75">Recommended</span>}</button>)}</div><div className="mt-5 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => void onPreview(draftVoice)} disabled={isPreviewing} className="min-h-12 rounded-xl border border-[#9fceb3] px-4 font-bold text-[#1f7a57] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] disabled:opacity-50">{isPreviewing ? "Playing…" : "Preview voice"}</button><button type="button" onClick={() => onSelect(draftVoice)} className="min-h-12 rounded-xl bg-[#1f7a57] px-4 font-bold text-white focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Use this voice</button></div><p className="mt-4 text-xs leading-relaxed text-[#607a70]">Voice names are provided by OpenAI. Cadence does not assign gender labels to voices; choose by listening.</p></section></div>;
 }
 
 const tutorialSteps = [

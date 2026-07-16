@@ -66,20 +66,22 @@ export function transcribeOnce(onText: (text: string) => void, onError: (message
   };
 }
 
-export function transcribe(onText: (text: string, confidence?: number) => void, onStatus: (status: LiveTranscriptionStatus) => void, onError: (message: string) => void): BrowserTranscriber {
+export function transcribe(onText: (text: string, confidence?: number) => void, onStatus: (status: LiveTranscriptionStatus) => void, onError: (message: string) => void, onInterim?: (text: string) => void): BrowserTranscriber {
   if (typeof window === "undefined") return { supported: false, start() {}, stop() {} };
   const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
   if (!Recognition) return { supported: false, start() { onStatus("unsupported"); }, stop() {} };
   const recognition = new Recognition();
   let shouldListen = false;
   recognition.continuous = true;
-  recognition.interimResults = false;
+  recognition.interimResults = true;
   recognition.lang = "en-US";
   recognition.onresult = (event) => {
     for (let index = event.resultIndex; index < event.results.length; index += 1) {
       const result = event.results[index];
       const text = result[0]?.transcript.trim();
-      if (result.isFinal && text) onText(text, result[0]?.confidence);
+      if (!text) continue;
+      if (result.isFinal) onText(text, result[0]?.confidence);
+      else onInterim?.(text);
     }
   };
   recognition.onerror = (event) => {
