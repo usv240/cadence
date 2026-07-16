@@ -25,6 +25,8 @@ export type TranscriptTurn = {
   text: string;
   time: string;
   color: "orange" | "blue" | "pink";
+  confidence?: number;
+  isUncertain?: boolean;
 };
 
 export type SpokenItem = {

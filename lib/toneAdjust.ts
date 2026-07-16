@@ -18,6 +18,6 @@ export async function toneAdjust({ text, tone }: ToneAdjustInput): Promise<ToneA
     text: { format: { type: "json_schema", name: "cadence_tone", strict: true, schema } },
   });
   const parsed = JSON.parse(response.output_text) as ToneAdjustOutput;
-  if (typeof parsed.text !== "string") throw new Error("The tone response did not match the expected schema.");
+  if (typeof parsed.text !== "string" || !parsed.text.trim() || parsed.text.length > 600) throw new Error("The tone response did not match the expected schema.");
   return parsed;
 }

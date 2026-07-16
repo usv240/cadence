@@ -10,4 +10,5 @@ export function getOpenAIClient() {
 export const modelConfig = {
   model: "gpt-5.6-luna",
   reasoning: { effort: "low" as const },
+  store: false,
 };

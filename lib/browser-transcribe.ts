@@ -1,6 +1,6 @@
 export type LiveTranscriptionStatus = "off" | "listening" | "unsupported";
 
-type SpeechRecognitionAlternative = { transcript: string };
+type SpeechRecognitionAlternative = { transcript: string; confidence?: number };
 type SpeechRecognitionResult = { isFinal: boolean; 0: SpeechRecognitionAlternative };
 type SpeechRecognitionResultList = { length: number; [index: number]: SpeechRecognitionResult };
 type SpeechRecognitionEvent = { resultIndex: number; results: SpeechRecognitionResultList };
@@ -27,7 +27,7 @@ declare global {
 
 export type BrowserTranscriber = { supported: boolean; start(): void; stop(): void };
 
-export function transcribe(onText: (text: string) => void, onStatus: (status: LiveTranscriptionStatus) => void, onError: (message: string) => void): BrowserTranscriber {
+export function transcribe(onText: (text: string, confidence?: number) => void, onStatus: (status: LiveTranscriptionStatus) => void, onError: (message: string) => void): BrowserTranscriber {
   if (typeof window === "undefined") return { supported: false, start() {}, stop() {} };
   const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
   if (!Recognition) return { supported: false, start() { onStatus("unsupported"); }, stop() {} };
@@ -40,7 +40,7 @@ export function transcribe(onText: (text: string) => void, onStatus: (status: Li
     for (let index = event.resultIndex; index < event.results.length; index += 1) {
       const result = event.results[index];
       const text = result[0]?.transcript.trim();
-      if (result.isFinal && text) onText(text);
+      if (result.isFinal && text) onText(text, result[0]?.confidence);
     }
   };
   recognition.onerror = (event) => {

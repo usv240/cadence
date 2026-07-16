@@ -1,5 +1,6 @@
 import type { Candidate, Intent, Tone, TranscriptInput, TranscriptTurn } from "./conversation";
 import type { PersonalProfile } from "./profile";
+import type { ConversationMemory } from "./memory";
 
 const transcriptLines: Omit<TranscriptTurn, "id" | "time">[] = [
   { speaker: "Maya", text: "This pasta is officially going into the regular rotation.", color: "orange" },
@@ -15,7 +16,7 @@ const tonePrefixes: Record<Tone, string[]> = {
   funny: ["Plot twist: ", "Bold proposal: ", "For legal reasons, ", "My official position: "],
 };
 
-export function mockPredict({ transcript, profile, keyword, count = 4 }: { transcript: TranscriptInput[]; profile?: PersonalProfile; keyword?: string; count?: number }): Candidate[] {
+export function mockPredict({ transcript, profile, memory, keyword, count = 4 }: { transcript: TranscriptInput[]; profile?: PersonalProfile; memory?: ConversationMemory; keyword?: string; count?: number }): Candidate[] {
   const latest = transcript.at(-1)?.text.trim() || "the conversation";
   const topic = latest.toLowerCase();
   const name = profile?.preferredName.trim() || profile?.fullName.trim().split(/\s+/)[0] || "";
@@ -41,7 +42,7 @@ export function mockPredict({ transcript, profile, keyword, count = 4 }: { trans
           { text: "I'm glad we're getting to talk.", intent: "agree" as const },
         ]
         : [
-          { text: `I was thinking about what you said about ${latest.replace(/[?!.]+$/, "").toLowerCase()}.`, intent: "react" as const },
+          { text: memory?.topics[0] ? `I was thinking about ${memory.topics[0]} after what you said about ${latest.replace(/[?!.]+$/, "").toLowerCase()}.` : `I was thinking about what you said about ${latest.replace(/[?!.]+$/, "").toLowerCase()}.`, intent: "react" as const },
           { text: "Could you say a little more about that?", intent: "ask" as const },
           { text: "That sounds like the kind of plot twist I can get behind.", intent: "joke" as const },
           { text: "I hear you—thanks for sharing that.", intent: "agree" as const },
@@ -58,6 +59,19 @@ export function mockExpand({ keyword, transcript }: { keyword: string; transcrip
     `How does ${word} fit with what you just mentioned?`,
     `I am open to ${word}, as long as it still works for this conversation.`,
   ];
+}
+
+export function mockInitiate({ transcript, profile, memory, keyword, count = 4 }: { transcript: TranscriptInput[]; profile?: PersonalProfile; memory?: ConversationMemory; keyword?: string; count?: number }): Candidate[] {
+  const detail = profile?.details.split(/[.!]/).map((item) => item.trim()).find(Boolean);
+  const recentTopic = transcript.at(-1)?.text.replace(/[?!.]+$/, "").trim();
+  const steer = keyword?.trim();
+  const candidates: Candidate[] = [
+    { text: steer ? `I've been thinking about ${steer} lately, and I wanted to share it with you.` : detail ? `I've been thinking about ${detail.toLowerCase()} lately, and I wanted to share it with you.` : memory?.topics[0] ? `I've been thinking about ${memory.topics[0]} lately, and I wanted to share it with you.` : "I've been thinking about something lately, and I wanted to share it with you.", intent: "react" },
+    { text: recentTopic ? `How have you been feeling about ${recentTopic.toLowerCase()}?` : "How has your day been going so far?", intent: "ask" },
+    { text: "Can I bring up something that's been on my mind?", intent: "redirect" },
+    { text: "I just wanted to say I appreciate you and I'm glad we're talking.", intent: "agree" },
+  ];
+  return candidates.slice(0, count);
 }
 
 export function mockToneAdjust(text: string, tone: Tone): string {

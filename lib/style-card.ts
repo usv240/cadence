@@ -18,7 +18,7 @@ export async function buildStyleCard({ samples }: StyleInput): Promise<StyleOutp
     text: { format: { type: "json_schema", name: "cadence_style_card", strict: true, schema } },
   });
   const parsed = JSON.parse(response.output_text) as StyleOutput;
-  if (typeof parsed.styleCard !== "string" || !parsed.styleCard.trim()) throw new Error("The style response did not match the expected schema.");
+  if (typeof parsed.styleCard !== "string" || !parsed.styleCard.trim() || parsed.styleCard.length > 2000) throw new Error("The style response did not match the expected schema.");
   return { styleCard: parsed.styleCard.trim() };
 }
 

@@ -19,6 +19,6 @@ export async function expand({ keyword, transcript, styleCard, profile }: Expand
     text: { format: { type: "json_schema", name: "cadence_expansions", strict: true, schema } },
   });
   const parsed = JSON.parse(response.output_text) as ExpandOutput;
-  if (!Array.isArray(parsed.variants) || parsed.variants.length < 2 || !parsed.variants.every((variant) => typeof variant === "string")) throw new Error("The expansion response did not match the expected schema.");
+  if (!Array.isArray(parsed.variants) || parsed.variants.length < 2 || !parsed.variants.every((variant) => typeof variant === "string" && variant.trim().length > 0 && variant.length <= 600)) throw new Error("The expansion response did not match the expected schema.");
   return { variants: parsed.variants };
 }

@@ -14,3 +14,10 @@ out/
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Local product planning notes
+PRODUCT-ROADMAP.local.md
+
+# Playwright artifacts
+playwright-report/
+test-results/

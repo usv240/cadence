@@ -1,17 +1,23 @@
 import { speak, type SpeakInput } from "@/lib/speak";
-import { exceedsLength, rejectRateLimited } from "@/lib/api-guard";
+import { exceedsLength, readJsonBody, rejectMissingModelConsent, rejectRateLimited, rejectUntrustedRequest, serverError } from "@/lib/api-guard";
 
 export async function POST(request: Request) {
   try {
-    const limited = rejectRateLimited(request);
+    const untrusted = rejectUntrustedRequest(request);
+    if (untrusted) return untrusted;
+    const consent = rejectMissingModelConsent(request);
+    if (consent) return consent;
+    const limited = rejectRateLimited(request, "speak");
     if (limited) return limited;
-    const input = await request.json() as SpeakInput;
+    const body = await readJsonBody<SpeakInput>(request);
+    if ("error" in body) return body.error;
+    const input = body.data;
     const textError = exceedsLength(input.text, 600, "text");
-    if (textError || !["warm", "firm", "funny"].includes(input.tone)) return Response.json({ error: textError ?? "a valid tone is required." }, { status: 400 });
+    if (textError || !["warm", "firm", "funny"].includes(input.tone) || (input.delivery !== undefined && input.delivery !== "needs")) return Response.json({ error: textError ?? "a valid tone or delivery is required." }, { status: 400 });
     const audio = await speak(input);
     if (!audio) return new Response(null, { status: 204 });
     return new Response(audio.body, { headers: { "Content-Type": audio.headers.get("content-type") ?? "audio/mpeg", "Cache-Control": "no-store" } });
-  } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Unable to create speech." }, { status: 500 });
+  } catch {
+    return serverError("Unable to create speech.");
   }
 }

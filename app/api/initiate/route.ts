@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { exceedsLength, readJsonBody, rejectMissingModelConsent, rejectRateLimited, rejectUntrustedRequest, serverError, validateString, validateTranscript } from "@/lib/api-guard";
-import { predict, type PredictInput } from "@/lib/predict";
+import { initiate, type InitiateInput } from "@/lib/initiate";
 import { validatePersonalProfile } from "@/lib/profile";
 import { validateConversationMemory } from "@/lib/memory";
 import { validateConversationSettings } from "@/lib/conversation-settings";
@@ -11,9 +11,9 @@ export async function POST(request: Request) {
     if (untrusted) return untrusted;
     const consent = rejectMissingModelConsent(request);
     if (consent) return consent;
-    const limited = rejectRateLimited(request, "predict");
+    const limited = rejectRateLimited(request, "initiate");
     if (limited) return limited;
-    const body = await readJsonBody<PredictInput>(request);
+    const body = await readJsonBody<InitiateInput>(request);
     if ("error" in body) return body.error;
     const input = body.data;
     const transcriptError = validateTranscript(input.transcript);
@@ -22,9 +22,9 @@ export async function POST(request: Request) {
     const memoryError = validateConversationMemory(input.memory);
     const settingsError = validateConversationSettings(input.settings);
     const styleError = validateString(input.styleCard, 2_000, "styleCard");
-    if (transcriptError || keywordError || profileError || memoryError || settingsError || styleError || (input.feedback !== undefined && input.feedback !== "more_like_me")) return NextResponse.json({ error: transcriptError ?? keywordError ?? profileError ?? memoryError ?? settingsError ?? styleError ?? "invalid feedback." }, { status: 400 });
-    return NextResponse.json(await predict(input));
+    if (transcriptError || keywordError || profileError || memoryError || settingsError || styleError) return NextResponse.json({ error: transcriptError ?? keywordError ?? profileError ?? memoryError ?? settingsError ?? styleError }, { status: 400 });
+    return NextResponse.json(await initiate(input));
   } catch {
-    return serverError("Unable to predict replies.");
+    return serverError("Unable to start a conversation.");
   }
 }
