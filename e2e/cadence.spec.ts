@@ -9,13 +9,14 @@ async function openFreshApp(page: import("@playwright/test").Page) {
 async function skipOnboarding(page: import("@playwright/test").Page) {
   const start = page.getByRole("button", { name: "Start", exact: true });
   if (await start.isVisible()) await start.click();
-  await expect(page.getByRole("heading", { name: "Choose a reply" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ready when you are" })).toBeVisible();
 }
 
 test("new user reaches a prepared reply and speaks it", async ({ page }) => {
   await openFreshApp(page);
   await skipOnboarding(page);
-  await page.getByRole("button", { name: "Reset demo" }).click();
+  await page.getByRole("button", { name: "Start something" }).click();
+  await expect(page.getByRole("heading", { name: "Start the conversation" })).toBeVisible();
 
   const reply = page.getByRole("button", { name: /Speak .* reply:/ }).first();
   const replyText = (await reply.getAttribute("aria-label"))?.replace(/^Speak .* reply: /, "");
@@ -62,8 +63,6 @@ test("offline mode offers local replies and conversation starters", async ({ pag
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
   await expect(page.getByText(/Offline mode\./)).toBeVisible();
 
-  await page.getByRole("button", { name: "Reset demo" }).click();
-  await expect(page.getByRole("button", { name: /Speak .* reply:/ }).first()).toBeVisible();
   await page.getByRole("button", { name: "Start something" }).click();
   await expect(page.getByRole("heading", { name: "Start the conversation" })).toBeVisible();
   await expect(page.getByText(/Conversation starters are ready locally/)).toBeVisible();
@@ -78,6 +77,6 @@ test("privacy controls record consent and erase local Cadence data", async ({ pa
 
   await page.getByRole("button", { name: "Privacy" }).click();
   await page.getByRole("button", { name: "Erase all local data" }).click();
-  await expect(page.getByRole("heading", { name: "Choose a reply" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ready when you are" })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("cadence.realModeConsent"))).toBeNull();
 });

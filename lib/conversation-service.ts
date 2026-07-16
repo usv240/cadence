@@ -13,6 +13,7 @@ import type { TtsVoice } from "./voices";
 let activeAudio: HTMLAudioElement | null = null;
 let activeAudioUrl: string | null = null;
 let completeActiveAudio: (() => void) | null = null;
+const STREAMING_AUDIO_MIME = "audio/mpeg";
 
 export class RealModeConsentRequiredError extends Error {
   constructor() {
@@ -77,13 +78,76 @@ function clearActiveAudio() {
   completeActiveAudio = null;
 }
 
+function canStreamAudio(contentType: string) {
+  return typeof MediaSource !== "undefined" && MediaSource.isTypeSupported(contentType);
+}
+
+async function playStreamedAudio(response: Response, onPlaybackStarted?: () => void) {
+  const stream = response.body;
+  const contentType = response.headers.get("Content-Type")?.split(";", 1)[0] || STREAMING_AUDIO_MIME;
+  if (!stream || !canStreamAudio(contentType)) return false;
+
+  const mediaSource = new MediaSource();
+  activeAudioUrl = URL.createObjectURL(mediaSource);
+  const audio = new Audio(activeAudioUrl);
+  activeAudio = audio;
+
+  const ended = new Promise<void>((resolve, reject) => {
+    completeActiveAudio = resolve;
+    audio.onended = () => { clearActiveAudio(); resolve(); };
+    audio.onerror = () => { clearActiveAudio(); reject(new Error("Audio playback failed.")); };
+  });
+  const sourceOpened = new Promise<void>((resolve, reject) => {
+    mediaSource.addEventListener("sourceopen", () => resolve(), { once: true });
+    mediaSource.addEventListener("error", () => reject(new Error("Streaming audio is unavailable.")), { once: true });
+  });
+
+  try {
+    await sourceOpened;
+    const sourceBuffer = mediaSource.addSourceBuffer(contentType);
+    const reader = stream.getReader();
+    const append = async (chunk: Uint8Array) => {
+      await new Promise<void>((resolve, reject) => {
+        sourceBuffer.addEventListener("updateend", () => resolve(), { once: true });
+        sourceBuffer.addEventListener("error", () => reject(new Error("Audio buffering failed.")), { once: true });
+        sourceBuffer.appendBuffer(chunk);
+      });
+    };
+    const first = await reader.read();
+    if (first.done || !first.value) throw new Error("No audio was returned.");
+    await append(first.value);
+    await audio.play();
+    onPlaybackStarted?.();
+    void (async () => {
+      try {
+        for (;;) {
+          const chunk = await reader.read();
+          if (chunk.done || activeAudio !== audio) break;
+          if (chunk.value) await append(chunk.value);
+        }
+        if (mediaSource.readyState === "open") mediaSource.endOfStream();
+      } catch {
+        if (mediaSource.readyState === "open") mediaSource.endOfStream("network");
+      }
+    })();
+    await ended;
+    return true;
+  } catch (error) {
+    if (activeAudio === audio) {
+      audio.pause();
+      clearActiveAudio();
+    }
+    throw error;
+  }
+}
+
 export interface ConversationService {
   predict(input: { transcript: TranscriptInput[]; styleCard: string; profile?: PersonalProfile; memory?: ConversationMemory; settings?: ConversationSettings; feedback?: "more_like_me"; keyword?: string; n?: number }, signal?: AbortSignal): Promise<PredictOutput>;
   initiate(input: { transcript: TranscriptInput[]; styleCard: string; profile?: PersonalProfile; memory?: ConversationMemory; settings?: ConversationSettings; keyword?: string; n?: number }): Promise<InitiateOutput>;
   expand(input: { keyword: string; transcript: TranscriptInput[]; styleCard: string; profile?: PersonalProfile }): Promise<ExpandOutput>;
   toneAdjust(input: { text: string; tone: Tone }): Promise<ToneAdjustOutput>;
   style(input: StyleInput): Promise<StyleOutput>;
-  speak(text: string, tone: Tone, delivery?: "needs", voice?: TtsVoice, onPlaybackStarted?: () => void): Promise<void>;
+  speak(text: string, tone: Tone, delivery?: "needs", voice?: TtsVoice, onPlaybackStarted?: () => void, useDeviceVoice?: boolean): Promise<void>;
   stopSpeaking(): void;
   transcribe(previousText?: string): Promise<TranscriptTurn>;
 }
@@ -108,8 +172,8 @@ export const conversationService: ConversationService = {
   expand: (input) => postJson<ExpandOutput>("/api/expand", input),
   toneAdjust: (input) => postJson<ToneAdjustOutput>("/api/tone", input),
   style: (input) => postJson<StyleOutput>("/api/style", input),
-  async speak(text, tone, delivery, voice, onPlaybackStarted) {
-    if (!navigator.onLine) {
+  async speak(text, tone, delivery, voice, onPlaybackStarted, useDeviceVoice = false) {
+    if (useDeviceVoice || !navigator.onLine) {
       speakWithDevice(text, tone, delivery, onPlaybackStarted);
       return;
     }
@@ -133,6 +197,7 @@ export const conversationService: ConversationService = {
       throw new Error(detail.error ?? "Unable to speak this reply.");
     }
     this.stopSpeaking();
+    if (await playStreamedAudio(response, onPlaybackStarted)) return;
     activeAudioUrl = URL.createObjectURL(await response.blob());
     activeAudio = new Audio(activeAudioUrl);
     activeAudio.onended = clearActiveAudio;

@@ -82,3 +82,44 @@ html.dark .listen-toggle-on { background: #087f71; color: #ffffff; }
 html.dark .listen-toggle-on:hover { background: #076b61; }
 html.dark .listen-indicator { background: #aebcd0; }
 html.dark .listen-toggle-on .listen-indicator { background: #b3f3df; }
+
+/* Landing page shares the app's neutral surfaces in light mode and slate surfaces in dark mode. */
+.landing-page { background: #f5f7f4; color: #122726; }
+.landing-copy { color: #4b675e; }
+.landing-mark { background: #173d3a; }
+.landing-theme-toggle, .landing-open-demo { color: #315a4b; }
+.landing-theme-toggle:hover, .landing-open-demo:hover { background: #edf5ef; }
+.landing-primary { background: #1f7a57; }
+.landing-primary:hover { background: #176746; }
+.landing-secondary { border-color: #cbd9d2; color: #315a4b; }
+.landing-secondary:hover { background: #ffffff; }
+.landing-preview { border-color: #d5e0d9; background: #edf5ef; }
+.landing-preview-inner, .landing-card, .landing-surface { border-color: #dce6df; background: #ffffff; }
+.landing-preview-status { border-color: #e3ebe6; color: #176746; }
+.landing-assurance { border-color: #b9ddc8; background: #eaf8ef; color: #205342; }
+.landing-step { background: #e3f4eb; color: #176746; }
+.landing-inverse { background: #173d3a; color: #ffffff; }
+.landing-inverse-eyebrow { color: #b9d5c6; }
+.landing-inverse-copy { color: #d6e6dd; }
+.landing-callout { background: #edf5ef; }
+.landing-footer { border-color: #dce6df; color: #5d796f; }
+
+html.dark .landing-page { background: #0f172a !important; color: #edf3fa; }
+html.dark .landing-copy { color: #c6d3e5 !important; }
+html.dark .landing-mark { background: #087f71 !important; }
+html.dark .landing-theme-toggle, html.dark .landing-open-demo { color: #dce8f5 !important; }
+html.dark .landing-theme-toggle:hover, html.dark .landing-open-demo:hover { background: #202d42 !important; }
+html.dark .landing-primary { background: #087f71 !important; }
+html.dark .landing-primary:hover { background: #076b61 !important; }
+html.dark .landing-secondary { border-color: #4a5e7b !important; color: #dce8f5 !important; }
+html.dark .landing-secondary:hover { background: #202d42 !important; }
+html.dark .landing-preview, html.dark .landing-card, html.dark .landing-surface { border-color: #3b4d69 !important; background: #182235 !important; }
+html.dark .landing-preview-inner { background: #121d2e !important; }
+html.dark .landing-preview-status { border-color: #3b4d69 !important; color: #70e0cb !important; }
+html.dark .landing-assurance { border-color: #3b4d69 !important; background: #182235 !important; color: #edf3fa !important; }
+html.dark .landing-step { background: #263650 !important; color: #70e0cb !important; }
+html.dark .landing-inverse { background: #182235 !important; color: #ffffff !important; }
+html.dark .landing-inverse-eyebrow { color: #aabbd1 !important; }
+html.dark .landing-inverse-copy { color: #d7e2f0 !important; }
+html.dark .landing-callout { background: #182235 !important; }
+html.dark .landing-footer { border-color: #3b4d69 !important; color: #c6d3e5 !important; }

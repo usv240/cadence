@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const body = await readJsonBody<InitiateInput>(request);
     if ("error" in body) return body.error;
     const input = body.data;
-    const transcriptError = validateTranscript(input.transcript);
+    const transcriptError = Array.isArray(input.transcript) && input.transcript.length === 0 ? null : validateTranscript(input.transcript);
     const keywordError = input.keyword === undefined ? null : exceedsLength(input.keyword, 40, "keyword");
     const profileError = validatePersonalProfile(input.profile);
     const memoryError = validateConversationMemory(input.memory);

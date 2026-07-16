@@ -34,7 +34,7 @@ export function mockPredict({ transcript, profile, memory, keyword, count = 4 }:
         { text: "I am operating on optimism and decent coffee.", intent: "joke" as const },
         { text: "It's good to hear your voice.", intent: "agree" as const },
       ]
-      : topic.includes("name") && name
+      : (topic.includes("what's your name") || topic.includes("what is your name") || topic.includes("what should i call you")) && name
         ? [
           { text: `I'm ${name}. It's nice to meet you.`, intent: "react" as const },
           { text: "What should I call you?", intent: "ask" as const },

@@ -14,6 +14,19 @@ Traditional AAC can be powerful, but live conversation still creates a timing pr
 
 ## What It Does
 
+## Technology and Connectivity
+
+| Capability | Technology | Connection needed? |
+| --- | --- | --- |
+| App interface | Next.js, React, TypeScript, Tailwind CSS | No after loading |
+| Live captions | Browser Web Speech API | Browser-dependent; typically online |
+| Reply generation and voice | OpenAI Responses API and Audio Speech | Yes, only after real-mode consent |
+| Saved voice, details, memory, phrases | Browser `localStorage` | No — stays on the device |
+| Offline essentials | Local reply fallback, device speech, backup board | No |
+| Hosting and aggregate page analytics | Vercel and Vercel Web Analytics | Yes |
+
+**More → About** shows current connection, caption, and online-AI permission status without exposing conversation content.
+
 ### Live conversation
 
 - Shows a compact rolling room transcript.
@@ -74,7 +87,7 @@ Open `http://localhost:3000`.
 
 Use mock mode to review the complete experience without an API key, microphone, or network connection:
 
-1. Open `/app` and choose **Reset demo**.
+1. Open `/app`, then choose **More → Play demo conversation**.
 2. Tap a prepared reply to see it enter the Spoken panel.
 3. Choose **Start something** to show user-led openers.
 4. Open **My needs** or the backup-board icon for essential communication.
