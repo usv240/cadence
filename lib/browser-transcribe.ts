@@ -27,6 +27,45 @@ declare global {
 
 export type BrowserTranscriber = { supported: boolean; start(): void; stop(): void };
 
+export function transcribeOnce(onText: (text: string) => void, onError: (message: string) => void): BrowserTranscriber {
+  if (typeof window === "undefined") return { supported: false, start() {}, stop() {} };
+  const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+  if (!Recognition) return { supported: false, start() { onError("Voice input is not supported in this browser. Type a short idea instead."); }, stop() {} };
+  const recognition = new Recognition();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = "en-US";
+  let receivedText = false;
+  recognition.onresult = (event) => {
+    const text = event.results[event.resultIndex]?.[0]?.transcript.trim();
+    if (!text || !event.results[event.resultIndex]?.isFinal) return;
+    receivedText = true;
+    onText(text);
+    recognition.stop();
+  };
+  recognition.onerror = (event) => {
+    const message = event.error === "not-allowed" || event.error === "service-not-allowed"
+      ? "Microphone permission was denied. Allow microphone access and try again."
+      : event.error === "no-speech"
+        ? "No speech was heard. Try again or type a short idea."
+        : "Voice input stopped. Please try again or type a short idea.";
+    onError(message);
+  };
+  recognition.onend = () => {
+    if (!receivedText) return;
+  };
+  return {
+    supported: true,
+    start() {
+      receivedText = false;
+      recognition.start();
+    },
+    stop() {
+      recognition.stop();
+    },
+  };
+}
+
 export function transcribe(onText: (text: string, confidence?: number) => void, onStatus: (status: LiveTranscriptionStatus) => void, onError: (message: string) => void): BrowserTranscriber {
   if (typeof window === "undefined") return { supported: false, start() {}, stop() {} };
   const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;

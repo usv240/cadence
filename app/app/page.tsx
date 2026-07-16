@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { transcribe, type BrowserTranscriber, type LiveTranscriptionStatus } from "@/lib/browser-transcribe";
-import { candidatesToSuggestions, conversationService } from "@/lib/conversation-service";
+import { transcribe, transcribeOnce, type BrowserTranscriber, type LiveTranscriptionStatus } from "@/lib/browser-transcribe";
+import { candidatesToSuggestions, conversationService, RealModeConsentRequiredError } from "@/lib/conversation-service";
 import { neutralStyleCard } from "@/lib/style-card";
 import { AAC_TYPING_WORDS_PER_MINUTE, calculateReplyImpact, calculateSessionImpact } from "@/lib/impact";
 import { emptyPersonalProfile, type PersonalProfile } from "@/lib/profile";
@@ -43,6 +43,7 @@ export default function Home() {
   const [keyword, setKeyword] = useState("");
   const [customMessage, setCustomMessage] = useState("");
   const [isExpanding, setIsExpanding] = useState(false);
+  const [isVoiceSteering, setIsVoiceSteering] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isInitiating, setIsInitiating] = useState(false);
   const [suggestionMode, setSuggestionMode] = useState<"reply" | "initiate">("reply");
@@ -90,6 +91,8 @@ export default function Home() {
   const [styleReady, setStyleReady] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const liveTranscriber = useRef<BrowserTranscriber | null>(null);
+  const voiceSteerTranscriber = useRef<BrowserTranscriber | null>(null);
+  const resumeRoomListeningAfterSteer = useRef(false);
   const prefetchTimer = useRef<number | null>(null);
   const inFlightRequest = useRef<AbortController | null>(null);
   const requestVersion = useRef(0);
@@ -111,6 +114,14 @@ export default function Home() {
     debugEventsRef.current = nextEvents;
     window.localStorage.setItem(debugLogKey, JSON.stringify(nextEvents));
     setDebugEvents(nextEvents);
+  }, []);
+
+  const isConsentRequired = useCallback((serviceError: unknown) => serviceError instanceof RealModeConsentRequiredError, []);
+
+  useEffect(() => {
+    const openPrivacyNotice = () => setShowPrivacy(true);
+    window.addEventListener("cadence:real-mode-consent-required", openPrivacyNotice);
+    return () => window.removeEventListener("cadence:real-mode-consent-required", openPrivacyNotice);
   }, []);
 
   const applyPredictions = useCallback(async (sourceTranscript: TranscriptInput[], signal: AbortSignal | undefined, version: number) => {
@@ -146,6 +157,7 @@ export default function Home() {
     } catch (predictionError) {
       if (signal?.aborted || (predictionError instanceof DOMException && predictionError.name === "AbortError")) return;
       if (version === requestVersion.current) {
+        if (isConsentRequired(predictionError)) return;
         const message = "Replies unavailable—use quick phrases or your saved replies.";
         setError(message);
         recordDebugEvent("prediction_failed", { message });
@@ -153,7 +165,7 @@ export default function Home() {
     } finally {
       if (version === requestVersion.current) setIsRefreshing(false);
     }
-  }, [recordDebugEvent]);
+  }, [isConsentRequired, recordDebugEvent]);
 
   const queueSpeculativePrediction = useCallback((sourceTranscript: TranscriptInput[]) => {
     if (prefetchTimer.current) window.clearTimeout(prefetchTimer.current);
@@ -375,13 +387,14 @@ export default function Home() {
       await conversationService.speak(text, toneOverride, delivery);
       recordDebugEvent("speech_completed", { text, tone: toneOverride, delivery, source });
     } catch (speakError) {
+      if (isConsentRequired(speakError)) return;
       const message = speakError instanceof Error ? speakError.message : "Unable to speak this reply.";
       setError(message);
       recordDebugEvent("speech_failed", { text, message, source });
     } finally {
       setIsSpeaking(false);
     }
-  }, [recordDebugEvent, suggestionMode, suggestions, tone]);
+  }, [isConsentRequired, recordDebugEvent, suggestionMode, suggestions, tone]);
 
   const saveConversationSettings = useCallback((nextSettings: ConversationSettings) => {
     const cleaned = sanitizeConversationSettings(nextSettings);
@@ -560,6 +573,7 @@ export default function Home() {
       setSuggestions(adjusted);
       recordDebugEvent("tone_adjustment_completed", { tone: nextTone, suggestions: adjusted });
     } catch (toneError) {
+      if (isConsentRequired(toneError)) return;
       const message = toneError instanceof Error ? toneError.message : "Unable to adjust the tone.";
       setError(message);
       recordDebugEvent("tone_adjustment_failed", { tone: nextTone, message });
@@ -568,14 +582,14 @@ export default function Home() {
     }
   };
 
-  const handleExpand = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!keyword.trim()) return;
-    recordDebugEvent("keyword_submitted", { keyword });
+  const expandKeyword = async (rawKeyword: string) => {
+    const steerKeyword = rawKeyword.trim();
+    if (!steerKeyword) return;
+    recordDebugEvent("keyword_submitted", { keyword: steerKeyword });
     setIsExpanding(true);
     setError("");
     if (!isOnline) {
-      const variants = offlineExpand(keyword, transcriptForModel(), profile);
+      const variants = offlineExpand(steerKeyword, transcriptForModel(), profile);
       const expanded = candidatesToSuggestions(variants.map((text): Candidate => ({ text, intent: "other" })));
       setBaseSuggestions(expanded);
       setSuggestions(expanded);
@@ -588,21 +602,62 @@ export default function Home() {
       return;
     }
     try {
-      const { variants } = await conversationService.expand({ keyword, transcript: transcriptForModel(), styleCard: styleCardRef.current, profile });
+      const { variants } = await conversationService.expand({ keyword: steerKeyword, transcript: transcriptForModel(), styleCard: styleCardRef.current, profile });
       const expanded = candidatesToSuggestions(variants.map((text): Candidate => ({ text, intent: "other" })));
       setBaseSuggestions(expanded);
       setSuggestions(expanded);
       setSuggestionMode("reply");
       setKeyword("");
       setPredictionStatus("ready");
-      recordDebugEvent("keyword_expansion_completed", { keyword, variants });
+      recordDebugEvent("keyword_expansion_completed", { keyword: steerKeyword, variants });
     } catch (expandError) {
+      if (isConsentRequired(expandError)) return;
       const message = expandError instanceof Error ? expandError.message : "Unable to create replies.";
       setError(message);
       recordDebugEvent("keyword_expansion_failed", { keyword, message });
     } finally {
       setIsExpanding(false);
     }
+  };
+
+  const handleExpand = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void expandKeyword(keyword);
+  };
+
+  const resumeRoomListening = () => {
+    setIsVoiceSteering(false);
+    if (!resumeRoomListeningAfterSteer.current) return;
+    resumeRoomListeningAfterSteer.current = false;
+    window.setTimeout(() => liveTranscriber.current?.start(), 100);
+  };
+
+  const startVoiceSteer = () => {
+    if (isVoiceSteering) {
+      voiceSteerTranscriber.current?.stop();
+      resumeRoomListening();
+      return;
+    }
+    resumeRoomListeningAfterSteer.current = listenStatus === "listening";
+    if (resumeRoomListeningAfterSteer.current) liveTranscriber.current?.stop();
+    const controller = transcribeOnce((text) => {
+      setKeyword(text);
+      recordDebugEvent("voice_steer_received", { text });
+      resumeRoomListening();
+      void expandKeyword(text);
+    }, (message) => {
+      resumeRoomListening();
+      setError(message);
+      recordDebugEvent("voice_steer_failed", { message });
+    });
+    voiceSteerTranscriber.current = controller;
+    if (!controller.supported) {
+      setError("Voice input is not supported in this browser. Type a short idea instead.");
+      return;
+    }
+    setIsVoiceSteering(true);
+    setError("");
+    controller.start();
   };
 
   const startSomething = async (steerKeyword = keyword) => {
@@ -632,6 +687,7 @@ export default function Home() {
       if (steerKeyword?.trim()) setKeyword("");
       recordDebugEvent("initiation_completed", { candidates });
     } catch (initiateError) {
+      if (isConsentRequired(initiateError)) return;
       const message = initiateError instanceof Error ? initiateError.message : "Unable to prepare conversation starters.";
       setError(message);
       recordDebugEvent("initiation_failed", { message });
@@ -718,7 +774,7 @@ export default function Home() {
                   <div><div className="flex items-center justify-between gap-2"><button type="button" onClick={() => setShowFeelingControls((open) => !open)} aria-expanded={showFeelingControls} className="min-h-11 rounded-xl px-1 text-sm font-bold text-[#3e5d53] hover:text-[#1f7a57] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Feelings {showFeelingControls ? "−" : "+"}</button><button type="button" onClick={() => setShowFeelings(true)} className="min-h-10 rounded-xl px-2 text-xs font-bold text-[#1f7a57] hover:bg-[#edf5ef] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd]">Edit</button></div>{showFeelingControls && <div className="mt-3 flex flex-wrap gap-2">{feelings.map((feeling, index) => <QuickButton key={feeling} text={feeling} onClick={speakFeeling} isScanningHighlighted={highlightedTargetId === `feeling-${index}`} />)}</div>}</div>
                   <fieldset className="shrink-0"><legend className="text-sm font-bold text-[#3e5d53]">Tone</legend><div className="mt-3 flex gap-2">{tones.map((option) => <button key={option} type="button" onClick={() => void selectTone(option)} disabled={isRefreshing} aria-pressed={tone === option} className={`min-h-11 rounded-xl border px-4 text-sm font-bold capitalize transition focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] disabled:opacity-60 ${tone === option ? "border-[#1f7a57] bg-[#1f7a57] text-white" : "border-[#d5e0d9] bg-white text-[#416158] hover:bg-[#edf5ef]"}`}>{option}</button>)}</div></fieldset>
                 </div>
-                <div className="mt-5 border-t border-[#e3ebe6] pt-4"><div className="flex gap-2" role="tablist" aria-label="Choose response action"><button type="button" role="tab" aria-selected={composerMode === "generate"} onClick={() => setComposerMode("generate")} className={`min-h-11 rounded-xl px-3 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] ${composerMode === "generate" ? "bg-[#1f7a57] text-white" : "bg-[#edf5ef] text-[#315a4b]"}`}>Make replies</button><button type="button" role="tab" aria-selected={composerMode === "speak"} onClick={() => setComposerMode("speak")} className={`min-h-11 rounded-xl px-3 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] ${composerMode === "speak" ? "bg-[#1f7a57] text-white" : "bg-[#edf5ef] text-[#315a4b]"}`}>Speak exactly</button></div>{composerMode === "generate" ? <form className="mt-3" onSubmit={(event) => void handleExpand(event)}><label htmlFor="keyword" className="text-sm font-bold text-[#3e5d53]">Start with a word or short idea</label><div className="mt-2 flex gap-2"><input id="keyword" value={keyword} onChange={(event) => setKeyword(event.target.value)} maxLength={40} placeholder="For example: picnic" className="min-h-12 min-w-0 flex-1 rounded-xl border border-[#d5e0d9] bg-white px-4 text-base outline-none placeholder:text-[#80948b] focus:ring-4 focus:ring-[#9fdfbd]" /><button type="submit" disabled={isExpanding || !keyword.trim()} className="min-h-12 rounded-xl bg-[#1f7a57] px-4 text-sm font-bold text-white hover:bg-[#176746] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] disabled:opacity-50">{isExpanding ? "Thinking" : "Make"}</button></div></form> : <form className="mt-3" onSubmit={handleCustomSpeak}><label htmlFor="custom-message" className="text-sm font-bold text-[#3e5d53]">Speak your own words</label><div className="mt-2 flex gap-2"><input id="custom-message" value={customMessage} onChange={(event) => setCustomMessage(event.target.value)} maxLength={600} placeholder="Type exactly what you want to say" className="min-h-12 min-w-0 flex-1 rounded-xl border border-[#d5e0d9] bg-white px-4 text-base outline-none placeholder:text-[#80948b] focus:ring-4 focus:ring-[#9fdfbd]" /><button type="submit" disabled={!customMessage.trim()} className="min-h-12 rounded-xl bg-[#1f7a57] px-4 text-sm font-bold text-white hover:bg-[#176746] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] disabled:opacity-50">Speak</button></div></form>}</div>
+                <div className="mt-5 border-t border-[#e3ebe6] pt-4"><div className="flex gap-2" role="tablist" aria-label="Choose response action"><button type="button" role="tab" aria-selected={composerMode === "generate"} onClick={() => setComposerMode("generate")} className={`min-h-11 rounded-xl px-3 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] ${composerMode === "generate" ? "bg-[#1f7a57] text-white" : "bg-[#edf5ef] text-[#315a4b]"}`}>Make replies</button><button type="button" role="tab" aria-selected={composerMode === "speak"} onClick={() => setComposerMode("speak")} className={`min-h-11 rounded-xl px-3 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] ${composerMode === "speak" ? "bg-[#1f7a57] text-white" : "bg-[#edf5ef] text-[#315a4b]"}`}>Speak exactly</button></div>{composerMode === "generate" ? <form className="mt-3" onSubmit={handleExpand}><label htmlFor="keyword" className="text-sm font-bold text-[#3e5d53]">Start with a word or short idea</label><p className="mt-1 text-xs text-[#607a70]">Type it, or say a few words and Cadence will make full replies.</p><div className="mt-2 flex flex-wrap gap-2"><input id="keyword" value={keyword} onChange={(event) => setKeyword(event.target.value)} maxLength={40} placeholder="For example: picnic" className="min-h-12 min-w-0 basis-full rounded-xl border border-[#d5e0d9] bg-white px-4 text-base outline-none placeholder:text-[#80948b] focus:ring-4 focus:ring-[#9fdfbd] sm:basis-auto sm:flex-1" /><button type="button" onClick={startVoiceSteer} aria-pressed={isVoiceSteering} aria-label={isVoiceSteering ? "Stop listening for your idea" : "Speak a short idea to make replies"} className={`min-h-12 rounded-xl px-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] ${isVoiceSteering ? "bg-[#173d3a] text-white" : "border border-[#9fceb3] bg-white text-[#1f7a57] hover:bg-[#edf5ef]"}`}>{isVoiceSteering ? "Listening…" : "Speak idea"}</button><button type="submit" disabled={isExpanding || !keyword.trim()} className="min-h-12 rounded-xl bg-[#1f7a57] px-4 text-sm font-bold text-white hover:bg-[#176746] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] disabled:opacity-50">{isExpanding ? "Thinking" : "Make"}</button></div><p className="sr-only" role="status" aria-live="polite">{isVoiceSteering ? "Listening for a short idea." : ""}</p></form> : <form className="mt-3" onSubmit={handleCustomSpeak}><label htmlFor="custom-message" className="text-sm font-bold text-[#3e5d53]">Speak your own words</label><div className="mt-2 flex gap-2"><input id="custom-message" value={customMessage} onChange={(event) => setCustomMessage(event.target.value)} maxLength={600} placeholder="Type exactly what you want to say" className="min-h-12 min-w-0 flex-1 rounded-xl border border-[#d5e0d9] bg-white px-4 text-base outline-none placeholder:text-[#80948b] focus:ring-4 focus:ring-[#9fdfbd]" /><button type="submit" disabled={!customMessage.trim()} className="min-h-12 rounded-xl bg-[#1f7a57] px-4 text-sm font-bold text-white hover:bg-[#176746] focus:outline-none focus:ring-4 focus:ring-[#9fdfbd] disabled:opacity-50">Speak</button></div></form>}</div>
               </div>
             </section>
           </section>

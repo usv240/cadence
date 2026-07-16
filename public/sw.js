@@ -1,4 +1,4 @@
-const CACHE_NAME = "cadence-shell-v2";
+const CACHE_NAME = "cadence-shell-v3";
 const APP_SHELL = ["/", "/app"];
 
 self.addEventListener("install", (event) => {
@@ -21,7 +21,10 @@ self.addEventListener("fetch", (event) => {
   }
   if (!url.pathname.startsWith("/_next/")) return;
   event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-    if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+    if (response.ok) {
+      const responseForCache = response.clone();
+      event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, responseForCache)).catch(() => undefined));
+    }
     return response;
   })));
 });

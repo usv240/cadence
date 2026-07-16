@@ -21,3 +21,6 @@ PRODUCT-ROADMAP.local.md
 # Playwright artifacts
 playwright-report/
 test-results/
+
+.vercel
+.env*

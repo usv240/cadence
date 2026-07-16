@@ -13,6 +13,18 @@ let activeAudio: HTMLAudioElement | null = null;
 let activeAudioUrl: string | null = null;
 let completeActiveAudio: (() => void) | null = null;
 
+export class RealModeConsentRequiredError extends Error {
+  constructor() {
+    super("Real-mode consent is required.");
+    this.name = "RealModeConsentRequiredError";
+  }
+}
+
+function realModeConsentRequired() {
+  window.dispatchEvent(new Event("cadence:real-mode-consent-required"));
+  return new RealModeConsentRequiredError();
+}
+
 function requestHeaders() {
   return {
     "Content-Type": "application/json",
@@ -49,6 +61,7 @@ export interface ConversationService {
 
 async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { method: "POST", headers: requestHeaders(), body: JSON.stringify(body), signal });
+  if (response.status === 428) throw realModeConsentRequired();
   if (!response.ok) {
     const detail = await response.json().catch(() => ({ error: "Unable to generate a reply." })) as { error?: string };
     throw new Error(detail.error ?? "Unable to generate a reply.");
@@ -77,6 +90,7 @@ export const conversationService: ConversationService = {
     if (response.status === 204) {
       return;
     }
+    if (response.status === 428) throw realModeConsentRequired();
     if (!response.ok) {
       const detail = await response.json().catch(() => ({ error: "Unable to speak this reply." })) as { error?: string };
       throw new Error(detail.error ?? "Unable to speak this reply.");
