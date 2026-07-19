@@ -82,7 +82,8 @@ test("privacy controls record consent and erase local Cadence data", async ({ pa
 });
 
 test("model routes reject oversized input and abusive request rates", async ({ request }) => {
-  const headers = { Origin: "http://127.0.0.1:3101", "x-vercel-forwarded-for": "203.0.113.91" };
+  const port = process.env.PLAYWRIGHT_PORT ?? "3101";
+  const headers = { Origin: `http://127.0.0.1:${port}`, "x-vercel-forwarded-for": "203.0.113.91" };
   const oversizedTranscript = Array.from({ length: 21 }, (_, index) => ({ speaker: `Speaker ${index}`, text: "A short caption." }));
 
   const oversizedResponse = await request.post("/api/predict", {

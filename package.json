@@ -12,6 +12,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.35.3",
     "@vercel/analytics": "^2.0.1",
     "next": "14.2.25",
     "openai": "^6.22.0",

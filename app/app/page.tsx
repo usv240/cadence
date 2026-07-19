@@ -229,17 +229,21 @@ export default function Home() {
     setMemory(nextMemory);
   }, []);
 
+  const commitTranscript = useCallback((nextTranscript: TranscriptTurn[]) => {
+    transcriptRef.current = nextTranscript;
+    setTranscript(nextTranscript);
+  }, []);
+
   const appendPartnerTurn = useCallback((turn: TranscriptTurn) => {
-    setTranscript((current) => {
-      if (current.at(-1)?.text === turn.text) return current;
-      const updated = [...current.slice(-5), turn];
-      recordDebugEvent("transcript_turn_received", { turn });
-      lastPartnerTurnAt.current = Date.now();
-      rememberTranscript(updated.map(({ speaker, text }) => ({ speaker, text })));
-      if (!turn.isUncertain) queueSpeculativePrediction(updated.filter((item) => !item.isUncertain).map(({ speaker, text }) => ({ speaker, text })));
-      return updated;
-    });
-  }, [queueSpeculativePrediction, recordDebugEvent, rememberTranscript]);
+    const current = transcriptRef.current;
+    if (current.at(-1)?.text === turn.text) return;
+    const updated = [...current.slice(-5), turn];
+    commitTranscript(updated);
+    recordDebugEvent("transcript_turn_received", { turn });
+    lastPartnerTurnAt.current = Date.now();
+    rememberTranscript(updated.map(({ speaker, text }) => ({ speaker, text })));
+    if (!turn.isUncertain) queueSpeculativePrediction(updated.filter((item) => !item.isUncertain).map(({ speaker, text }) => ({ speaker, text })));
+  }, [commitTranscript, queueSpeculativePrediction, recordDebugEvent, rememberTranscript]);
 
   useEffect(() => {
     const savedStyle = window.localStorage.getItem("cadence.styleCard");
@@ -262,6 +266,7 @@ export default function Home() {
     }
     const savedSession = readLocalSession(window.localStorage.getItem(localSessionKey));
     if (savedSession) {
+      transcriptRef.current = savedSession.transcript;
       setTranscript(savedSession.transcript);
       setSpoken(savedSession.spoken);
       setBaseSuggestions(savedSession.baseSuggestions);
@@ -398,7 +403,7 @@ export default function Home() {
   const playDemo = () => {
     liveTranscriber.current?.stop();
     const demoSuggestions = candidatesToSuggestions(offlinePredict({ transcript: initialTranscriptInput, profile: profileRef.current, memory: memoryRef.current, count: 4 }));
-    setTranscript(initialTranscript);
+    commitTranscript(initialTranscript);
     setSpoken([]);
     setBaseSuggestions(demoSuggestions);
     setSuggestions(demoSuggestions);
@@ -425,7 +430,7 @@ export default function Home() {
 
   const clearLocalSession = () => {
     window.localStorage.removeItem(localSessionKey);
-    setTranscript([]);
+    commitTranscript([]);
     setSpoken([]);
     setBaseSuggestions([]);
     setSuggestions([]);
@@ -439,27 +444,23 @@ export default function Home() {
   const transcriptForModel = (): TranscriptInput[] => transcript.filter((turn) => !turn.isUncertain).map(({ speaker, text }) => ({ speaker, text }));
 
   const confirmTranscriptTurn = useCallback((id: string, text: string) => {
-    setTranscript((current) => {
-      const updated = current.map((turn) => turn.id === id ? { ...turn, text: text.trim(), isUncertain: false, confidence: 1 } : turn);
-      queueSpeculativePrediction(updated.filter((item) => !item.isUncertain).map(({ speaker, text: turnText }) => ({ speaker, text: turnText })));
-      return updated;
-    });
+    const updated = transcriptRef.current.map((turn) => turn.id === id ? { ...turn, text: text.trim(), isUncertain: false, confidence: 1 } : turn);
+    commitTranscript(updated);
+    queueSpeculativePrediction(updated.filter((item) => !item.isUncertain).map(({ speaker, text: turnText }) => ({ speaker, text: turnText })));
     recordDebugEvent("transcript_turn_confirmed", { id, text });
     setSelectedTranscriptTurn(null);
-  }, [queueSpeculativePrediction, recordDebugEvent]);
+  }, [commitTranscript, queueSpeculativePrediction, recordDebugEvent]);
 
   const renameTranscriptSpeaker = useCallback((id: string, speaker: string) => {
     const cleanedSpeaker = speaker.trim().slice(0, 80);
     if (!cleanedSpeaker) return;
-    setTranscript((current) => {
-      const updated = current.map((turn) => turn.id === id ? { ...turn, speaker: cleanedSpeaker } : turn);
-      rememberTranscript(updated.map(({ speaker: turnSpeaker, text }) => ({ speaker: turnSpeaker, text })));
-      queueSpeculativePrediction(updated.filter((item) => !item.isUncertain).map(({ speaker: turnSpeaker, text }) => ({ speaker: turnSpeaker, text })));
-      return updated;
-    });
+    const updated = transcriptRef.current.map((turn) => turn.id === id ? { ...turn, speaker: cleanedSpeaker } : turn);
+    commitTranscript(updated);
+    rememberTranscript(updated.map(({ speaker: turnSpeaker, text }) => ({ speaker: turnSpeaker, text })));
+    queueSpeculativePrediction(updated.filter((item) => !item.isUncertain).map(({ speaker: turnSpeaker, text }) => ({ speaker: turnSpeaker, text })));
     recordDebugEvent("transcript_speaker_named", { id, speaker: cleanedSpeaker });
     setSpeakerTurn(null);
-  }, [queueSpeculativePrediction, recordDebugEvent, rememberTranscript]);
+  }, [commitTranscript, queueSpeculativePrediction, recordDebugEvent, rememberTranscript]);
 
   const addSpoken = useCallback(async (text: string, delivery?: "needs", toneOverride: Tone = tone, source = "direct") => {
     if (speakingRef.current) return;

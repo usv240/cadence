@@ -13,6 +13,7 @@ import type { TtsVoice } from "./voices";
 let activeAudio: HTMLAudioElement | null = null;
 let activeAudioUrl: string | null = null;
 let completeActiveAudio: (() => void) | null = null;
+let completeDeviceSpeech: (() => void) | null = null;
 const STREAMING_AUDIO_MIME = "audio/mpeg";
 
 export class RealModeConsentRequiredError extends Error {
@@ -63,12 +64,25 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, tim
 
 function speakWithDevice(text: string, tone: Tone, delivery?: "needs", onPlaybackStarted?: () => void) {
   if (!("speechSynthesis" in window)) throw new Error("Speech is unavailable offline on this device.");
+  completeDeviceSpeech?.();
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = delivery === "needs" || tone === "firm" ? 0.9 : 1;
   utterance.pitch = tone === "funny" ? 1.08 : 1;
-  window.speechSynthesis.speak(utterance);
-  onPlaybackStarted?.();
+  return new Promise<void>((resolve, reject) => {
+    const finish = () => {
+      if (completeDeviceSpeech === finish) completeDeviceSpeech = null;
+      resolve();
+    };
+    completeDeviceSpeech = finish;
+    utterance.onend = finish;
+    utterance.onerror = () => {
+      if (completeDeviceSpeech === finish) completeDeviceSpeech = null;
+      reject(new Error("Device speech playback failed."));
+    };
+    window.speechSynthesis.speak(utterance);
+    onPlaybackStarted?.();
+  });
 }
 
 function clearActiveAudio() {
@@ -212,7 +226,10 @@ export const conversationService: ConversationService = {
     });
   },
   stopSpeaking() {
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      completeDeviceSpeech?.();
+    }
     if (!activeAudio) return;
     activeAudio.pause();
     activeAudio.currentTime = 0;

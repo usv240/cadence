@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     if (untrusted) return untrusted;
     const consent = rejectMissingModelConsent(request);
     if (consent) return consent;
-    const limited = rejectRateLimited(request, "tone");
+    const limited = await rejectRateLimited(request, "tone");
     if (limited) return limited;
     const body = await readJsonBody<ToneAdjustInput>(request);
     if ("error" in body) return body.error;

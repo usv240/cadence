@@ -1,9 +1,23 @@
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
 type RateRecord = { count: number; resetAt: number };
 
 const rateLimit = new Map<string, RateRecord>();
 const maxRequestsPerMinute = 20;
 const maxTrackedClients = 10_000;
 const maxApiBodyBytes = 32_768;
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+const distributedRateLimit = redisUrl && redisToken
+  ? new Ratelimit({
+    redis: new Redis({ url: redisUrl, token: redisToken }),
+    limiter: Ratelimit.slidingWindow(maxRequestsPerMinute, "60 s"),
+    prefix: "cadence:api-rate-limit",
+    analytics: false,
+    timeout: 800,
+  })
+  : null;
 
 function realModeEnabled() {
   return process.env.MOCK_MODE === "0";
@@ -43,18 +57,45 @@ export function rejectUntrustedRequest(request: Request): Response | null {
   }
 }
 
-export function rejectRateLimited(request: Request, bucket: string): Response | null {
+function rateLimitResponse(resetAt: number) {
+  return Response.json(
+    { error: "Too many requests. Please try again in a minute." },
+    { status: 429, headers: { "Retry-After": String(Math.max(1, Math.ceil((resetAt - Date.now()) / 1000))), "Cache-Control": "no-store" } },
+  );
+}
+
+function unavailableRateLimitResponse() {
+  return Response.json(
+    { error: "Online AI is temporarily unavailable. Please use saved replies or quick phrases." },
+    { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "60" } },
+  );
+}
+
+export async function rejectRateLimited(request: Request, bucket: string): Promise<Response | null> {
+  const client = clientAddress(request);
+
+  if (realModeEnabled()) {
+    // Never expose a paid API key when the cross-instance guard is unavailable.
+    if (!distributedRateLimit) return unavailableRateLimitResponse();
+    try {
+      const result = await distributedRateLimit.limit(`${bucket}:${client}`);
+      return result.success ? null : rateLimitResponse(result.reset);
+    } catch {
+      return unavailableRateLimitResponse();
+    }
+  }
+
   const now = Date.now();
   if (rateLimit.size > maxTrackedClients) {
     rateLimit.forEach((record, key) => { if (record.resetAt <= now) rateLimit.delete(key); });
   }
-  const key = `${bucket}:${clientAddress(request)}`;
+  const key = `${bucket}:${client}`;
   const record = rateLimit.get(key);
   if (!record || record.resetAt <= now) {
     rateLimit.set(key, { count: 1, resetAt: now + 60_000 });
     return null;
   }
-  if (record.count >= maxRequestsPerMinute) return Response.json({ error: "Too many requests. Please try again in a minute." }, { status: 429, headers: { "Retry-After": String(Math.ceil((record.resetAt - now) / 1000)), "Cache-Control": "no-store" } });
+  if (record.count >= maxRequestsPerMinute) return rateLimitResponse(record.resetAt);
   record.count += 1;
   return null;
 }

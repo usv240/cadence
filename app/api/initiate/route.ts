@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     if (untrusted) return untrusted;
     const consent = rejectMissingModelConsent(request);
     if (consent) return consent;
-    const limited = rejectRateLimited(request, "initiate");
+    const limited = await rejectRateLimited(request, "initiate");
     if (limited) return limited;
     const body = await readJsonBody<InitiateInput>(request);
     if ("error" in body) return body.error;

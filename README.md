@@ -124,6 +124,8 @@ TTS_VOICE=marin
 | --- | --- | --- |
 | `MOCK_MODE` | No | Set `1` for local mocks; set `0` for real OpenAI generation and TTS. |
 | `OPENAI_API_KEY` | Real mode | Server-only key for OpenAI Responses and Audio Speech. |
+| `UPSTASH_REDIS_REST_URL` | Real mode | Server-only HTTPS URL for the production distributed rate-limit store. |
+| `UPSTASH_REDIS_REST_TOKEN` | Real mode | Server-only token for the production distributed rate-limit store. |
 | `TTS_MODEL` | No | OpenAI text-to-speech model; defaults to `gpt-4o-mini-tts`. |
 | `TTS_VOICE` | No | Default OpenAI voice; defaults to `marin`. A user can choose a built-in voice locally in **More → Speaking voice** without changing this variable. |
 
@@ -133,9 +135,11 @@ Never expose an API key through `NEXT_PUBLIC_*`, client code, screenshots, or co
 
 1. Import the repository, keep `MOCK_MODE=1` for preview deployments, and set `MOCK_MODE=0` only for Production.
 2. Add `OPENAI_API_KEY` and optional TTS variables only to the Production environment; redeploy after changing variables.
-3. Enable Vercel WAF and a durable distributed rate limiter before exposing paid routes publicly. The repository's in-memory limiter is only a local safety layer.
-4. Monitor `/api/health` for deployment availability. It returns only `{ status, mode }` and never conversation content.
-5. Enable platform error/latency alerts with transcript, profile, and speech-content collection disabled.
+3. Create an Upstash Redis database and add `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to **Production** only. With `MOCK_MODE=0`, Cadence fails closed (503) if this distributed limiter is unavailable, protecting the paid OpenAI key.
+4. In **Vercel -> Firewall**, publish a WAF rate-limit rule for `/api/*`: match requests whose path starts with `/api/`, key by IP, use a 60-second fixed window with a 20-request limit, and return `429`. Start in **Log** mode briefly, then publish the blocking rule. Keep Vercel's DDoS mitigation enabled.
+5. Keep `MOCK_MODE=1` in Preview. Use real mode only in Production after the WAF rule and Upstash variables are live.
+6. Monitor `/api/health` for deployment availability. It returns only `{ status, mode }` and never conversation content.
+7. Enable platform error/latency alerts with transcript, profile, and speech-content collection disabled.
 
 ## First Use
 
@@ -216,14 +220,15 @@ For a short demo video, show one complete story: reset the dinner demo; tap a pr
 
 - `.env.local` is Git-ignored; secrets are server-only.
 - All paid API routes require same-origin JSON requests, bound bodies and field sizes, validate nested data, and return generic failures rather than provider errors.
-- API endpoints use lightweight endpoint-scoped, per-IP in-memory rate limiting (20 requests/minute per endpoint/IP).
+- In `MOCK_MODE=1`, API endpoints use lightweight endpoint-scoped, per-IP in-memory rate limiting (20 requests/minute per endpoint/IP) for zero-config development and tests.
+- In real mode, API endpoints use a durable Upstash Redis sliding-window limiter (20 requests/minute per endpoint/IP). Missing or unavailable Redis returns `503` before any paid provider call.
 - Production responses set a Content Security Policy, anti-framing headers, strict referrer policy, MIME-sniffing protection, restrictive browser permissions, and no-index metadata.
 - The live app and API routes send `Cache-Control: no-store`; the service worker intentionally caches only static shell/framework resources.
 - Debug recording is opt-in, bounded, local-only, viewable, exportable, and clearable from **More**.
 
 ### Deployment requirement
 
-The in-memory limiter is not sufficient for a public paid-key deployment because it is per server instance. Before public launch, enable Vercel Firewall/WAF (or equivalent) and a durable distributed/edge rate limiter.
+Real mode requires the two Upstash environment variables above. Vercel WAF configuration remains an account-level deployment step: publish the `/api/*` IP rate-limit rule described in **Vercel Production Setup** before inviting public testers.
 
 ## Accessibility and Access Methods
 
@@ -276,7 +281,7 @@ npm run build
 ## Current Limitations and Next Validation
 
 - Browser live-caption accuracy and confidence signals vary by platform.
-- In-memory rate limiting must be replaced with a durable store for multi-instance production deployment.
+- Configure the documented Vercel Firewall `/api/*` rule before a broad public real-mode launch; the application-level Redis limiter is already durable and fail-closed.
 - The service worker supports app-shell recovery, not offline AI, browser captions, or network TTS; device speech remains available when the browser supports it.
 - Interim captions optimize perceived speed but remain provisional; final captions replace their speculative replies.
 - Cadence has not yet completed a formal usability study with people with ALS, AAC users, caregivers, or SLPs.
