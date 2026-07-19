@@ -12,14 +12,13 @@ async function main() {
   const totalCandidates = candidateTexts.length;
   const uniqueIntents = new Set(results.flatMap((result) => result.output.candidates.map((candidate) => candidate.intent))).size;
   const impact = calculateSessionImpact(candidateTexts);
-  const comparison = impact.keystrokeSavingsPercent - speakFasterPublishedMotorActionSavingsPercent;
   console.log("Cadence eval (single pass)");
   console.log(`Transcripts: ${results.length}`);
   console.log(`Average candidates: ${(totalCandidates / results.length).toFixed(1)}`);
   console.log(`Intent diversity: ${uniqueIntents}/6`);
   console.log(`Selection taps: ${impact.tapsUsed} vs ${impact.typedKeystrokes} typed keystrokes`);
   console.log(`Keystroke savings: ${impact.keystrokeSavingsPercent.toFixed(1)}%`);
-  console.log(`SpeakFaster comparison: ${comparison >= 0 ? "+" : ""}${comparison.toFixed(1)} percentage points vs its published 57% motor-action savings.`);
+  console.log(`Context only: SpeakFaster reports 57% motor-action savings. Cadence's ${impact.keystrokeSavingsPercent.toFixed(1)}% is an internal character-to-one-tap estimate and is not a direct benchmark comparison.`);
 
   const fallbackReplies = cannedTranscripts.map(({ transcript }) => offlinePredict({ transcript, count: 4 }));
   const fallbackOpeners = cannedTranscripts.map(({ transcript }) => offlineInitiate({ transcript, count: 4 }));

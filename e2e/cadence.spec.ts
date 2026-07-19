@@ -80,3 +80,20 @@ test("privacy controls record consent and erase local Cadence data", async ({ pa
   await expect(page.getByRole("heading", { name: "Ready when you are" })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("cadence.realModeConsent"))).toBeNull();
 });
+
+test("model routes reject oversized input and abusive request rates", async ({ request }) => {
+  const headers = { Origin: "http://127.0.0.1:3101", "x-vercel-forwarded-for": "203.0.113.91" };
+  const oversizedTranscript = Array.from({ length: 21 }, (_, index) => ({ speaker: `Speaker ${index}`, text: "A short caption." }));
+
+  const oversizedResponse = await request.post("/api/predict", {
+    headers,
+    data: { transcript: oversizedTranscript, styleCard: "Clear and conversational." },
+  });
+  expect(oversizedResponse.status()).toBe(400);
+
+  const responses = await Promise.all(Array.from({ length: 21 }, () => request.post("/api/tone", {
+    headers,
+    data: { text: "That sounds good.", tone: "warm" },
+  })));
+  expect(responses.filter((response) => response.status() === 429)).toHaveLength(1);
+});

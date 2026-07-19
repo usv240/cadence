@@ -20,7 +20,8 @@ Traditional AAC can be powerful, but live conversation still creates a timing pr
 | --- | --- | --- |
 | App interface | Next.js, React, TypeScript, Tailwind CSS | No after loading |
 | Live captions | Browser Web Speech API | Browser-dependent; typically online |
-| Reply generation and voice | OpenAI Responses API and Audio Speech | Yes, only after real-mode consent |
+| Reply generation and quality voice | OpenAI Responses API and Audio Speech | Yes, only after real-mode consent |
+| Instant device voice | Browser `speechSynthesis` | No; browser/device-dependent |
 | Saved voice, details, memory, phrases | Browser `localStorage` | No — stays on the device |
 | Offline essentials | Local reply fallback, device speech, backup board | No |
 | Hosting and aggregate page analytics | Vercel and Vercel Web Analytics | Yes |
@@ -31,7 +32,7 @@ Traditional AAC can be powerful, but live conversation still creates a timing pr
 
 - Shows a compact rolling room transcript.
 - Uses the browser’s Web Speech API for ambient captions—no transcription API key required.
-- When a new confirmed partner turn arrives, pre-generates reply cards in the background with a 500 ms debounce and one in-flight request cap.
+- Uses one stable interim caption to pre-warm a reply request, then replaces it with the confirmed final caption after a 150 ms debounce; superseded requests are cancelled and only one is in flight.
 - Gives each reply a diverse conversational intent: agree, ask, react, joke, redirect, or reply.
 - Provides **Start something** for four user-led conversation openers.
 - Supports a keyword/idea steer and tone adjustment (`warm`, `firm`, `funny`).
@@ -42,6 +43,7 @@ Traditional AAC can be powerful, but live conversation still creates a timing pr
 - Optional preview-before-speak lets the user edit a reply, make it shorter, ask for “more like me,” save it, reject it, or block it from future suggestions.
 - The user can stop active audio playback.
 - Low-confidence browser captions are held out of prediction until the user confirms or edits them with **Fix caption**.
+- **Who said this?** lets the user rename any caption speaker locally. Cadence never treats this as an automatic voice-identification guess.
 - Conversation setup stores a mode, energy level, people present, and topic/phrasing boundaries locally; low energy requests fewer choices and slows scanning.
 
 ### Fast expression and fallbacks
@@ -49,8 +51,10 @@ Traditional AAC can be powerful, but live conversation still creates a timing pr
 - One-tap quick reactions, feelings, tone choices, custom speech, **My needs**, and **Hold the floor**.
 - Editable needs and feelings are stored locally.
 - An always-available **Offline backup board** combines saved needs, feelings, and favorite replies without depending on listening or prediction.
+- **Instant device voice** speaks immediately with the browser's built-in voice; users can switch back to a selected OpenAI voice for higher-quality streamed speech.
 - The backup board downloads a plain-text communication plan for family or care teams.
 - Last generated reply cards are retained locally for recovery when replies are temporarily unavailable.
+- OpenAI MP3 output begins playing from the first streamed audio chunk in supported browsers instead of waiting for the full file.
 
 ### Personalization and continuity
 
@@ -67,6 +71,10 @@ Traditional AAC can be powerful, but live conversation still creates a timing pr
 - The backup board is included in scanning mode.
 - Optional four-step tutorial from the welcome screen or **More → About → Take the tour**.
 - Contextual `i` help explains secondary response controls on hover, focus, and tap.
+
+## Using Cadence
+
+For a simple, non-technical guide for users, families, and care teams, see [Using Cadence](docs/Using-Cadence.md).
 
 ## Quick Start
 
@@ -134,7 +142,7 @@ Never expose an API key through `NEXT_PUBLIC_*`, client code, screenshots, or co
 1. Choose **Start** in the welcome dialog to reach prepared reply cards immediately, or choose **Show me how** for the short guided tour.
 2. Turn **Listen** on when browser captions are useful. Grant microphone permission only when prompted.
 3. Tap a reply card to preview/speak it, or use **Start something** to initiate a topic.
-4. Open **More** to optionally set up a learned voice, personal details, local memory, scanning, demo playback, debug recording, or the tutorial.
+4. Open **More** to select instant or OpenAI speech, set up a learned voice, personal details, local memory, scanning, demo playback, debug recording, a local session, or the tutorial.
 5. Open **More ways to respond** when needed for quick reactions, feelings, tone, generated wording, or exact custom speech.
 6. Use **My needs**, **Hold the floor**, or the backup-board icon for fast fallback communication.
 
@@ -145,6 +153,7 @@ Cadence has no account and no application database. The following values are sto
 | Local key | Contents |
 | --- | --- |
 | `cadence.lastSuggestions` | Most recent generated reply cards for local recovery. |
+| `cadence.session` | Active transcript, staged replies, and Spoken log; automatically expires after 24 hours. |
 | `cadence.styleCard` | Learned or edited voice style card. |
 | `cadence.profile` | Optional personal details, saved locally as they are entered. |
 | `cadence.memory` | Extracted people and topics—not a full transcript. |
@@ -153,10 +162,11 @@ Cadence has no account and no application database. The following values are sto
 | `cadence.conversationSettings` | Mode, energy, boundaries, and scan speed. |
 | `cadence.theme` | Chosen light or dark display theme. |
 | `cadence.tone` | Chosen warm, firm, or funny delivery preference. |
+| `cadence.speechOutput` / `cadence.ttsVoice` | Selected instant-device or OpenAI speech output and OpenAI voice. |
 | Onboarding flags | First-run and first-success state. |
 | `cadence.debugLog` | Sensitive diagnostic events **only when the user explicitly enables debug recording**. |
 
-Cadence does **not** persist the full transcript, Spoken panel, or microphone audio by default.
+Cadence does **not** persist microphone audio. Its active text session (transcript, staged replies, and Spoken panel) is stored locally for up to 24 hours so a refresh does not erase the conversation. Use **More -> Clear this session** to remove it immediately.
 
 Use the in-app **Privacy** control to review real-mode data handling, grant real-mode consent, or erase every `cadence.*` value stored on the device. Real OpenAI routes reject requests until that consent is present; mock mode and offline essentials do not require it.
 
@@ -183,18 +193,18 @@ Browser SpeechRecognition ──> rolling transcript ──> local context manag
 
 local profile + voice + memory + settings ──> Next.js API routes ──> OpenAI Responses
 
-reply / quick phrase / backup board ──> OpenAI Speech (or mock) ──> playback
+reply / quick phrase / backup board ──> streamed OpenAI Speech or device speech ──> playback
 ```
 
 - **Client:** Next.js App Router, React, TypeScript strict mode, Tailwind CSS.
 - **Model routes:** `app/api/predict`, `initiate`, `expand`, `tone`, `style`, and `speak`.
 - **Model interfaces:** `lib/predict.ts`, `expand.ts`, `toneAdjust.ts`, `style-card.ts`, `initiate.ts`, `speak.ts`, and `browser-transcribe.ts`.
 - **Mock/real boundary:** `lib/conversation-service.ts` and `MOCK_MODE`.
-- **Local resilience:** browser storage, static shell service worker, backup board, and last suggestions.
+- **Local resilience:** 24-hour local session, browser storage, static shell service worker, backup board, and last suggestions.
 
 ## Built With Codex and GPT-5.6
 
-Cadence uses GPT-5.6 Luna through the OpenAI Responses API with low reasoning effort for latency-sensitive, structured reply prediction, initiation, keyword expansion, tone rewriting, and style-card creation. OpenAI Audio Speech provides real-mode spoken output.
+Cadence uses GPT-5.6 Luna through the OpenAI Responses API with low reasoning effort for latency-sensitive, structured reply prediction, initiation, keyword expansion, tone rewriting, and style-card creation. OpenAI Audio Speech streams real-mode spoken output; users can choose immediate local device speech when speed or offline use matters more.
 
 Codex accelerated the implementation of the App Router interface, typed service boundaries, structured model routes, accessibility controls, mock/real fallbacks, local-first persistence, rate-limit hardening, offline recovery, and the evaluation harness. Product decisions remained focused on the ALS communication problem: replies must arrive before the moment passes, remain in the user's voice, and never depend on a single networked service.
 
@@ -228,7 +238,7 @@ Real switch, eye-gaze, head-pointer, landscape-tablet, and screen-reader testing
 
 ## Impact and Evaluation
 
-Cadence computes each session’s estimated typing-time savings from actual spoken message length using a stated 15 words/minute AAC typing baseline. `npm run eval` runs three canned fixtures once and reports candidate count, intent diversity, tap/keystroke savings, and the comparison baseline used for Google SpeakFaster’s published 57% keystroke savings.
+Cadence computes each session’s estimated typing-time savings from actual spoken message length using a stated 15 words/minute AAC typing baseline. `npm run eval` runs three canned fixtures once and reports candidate count, intent diversity, and an internal tap/keystroke estimate. It shows Google SpeakFaster’s published 57% motor-action-savings figure only as context; the measures are not a direct benchmark comparison.
 
 The more meaningful outcome measures are participation: replies spoken, conversations initiated, time to response, edit/reject rate, and whether suggestions sound like the user. Those measures should be evaluated in a supervised pilot with people who use AAC, their communication partners, and SLPs.
 
@@ -267,6 +277,7 @@ npm run build
 
 - Browser live-caption accuracy and confidence signals vary by platform.
 - In-memory rate limiting must be replaced with a durable store for multi-instance production deployment.
-- The service worker supports app-shell recovery, not offline AI, browser captions, or network TTS.
+- The service worker supports app-shell recovery, not offline AI, browser captions, or network TTS; device speech remains available when the browser supports it.
+- Interim captions optimize perceived speed but remain provisional; final captions replace their speculative replies.
 - Cadence has not yet completed a formal usability study with people with ALS, AAC users, caregivers, or SLPs.
 - Treat the downloaded communication plan as a convenience document; maintain clinician-recommended low-tech backup methods as well.

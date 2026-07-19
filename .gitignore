@@ -17,10 +17,14 @@ Thumbs.db
 
 # Local product planning notes
 PRODUCT-ROADMAP.local.md
+OUTREACH-CONTACTS.local.md
 
 # Playwright artifacts
 playwright-report/
 test-results/
+
+# Local document-generation scratch files
+tmp/
 
 .vercel
 .env*
