@@ -8,6 +8,7 @@ export type ConversationSettings = {
   topicsToAvoid: string[];
   phrasesToAvoid: string[];
   scanIntervalMs: number;
+  privateSession: boolean;
 };
 
 export const defaultConversationSettings: ConversationSettings = {
@@ -17,6 +18,7 @@ export const defaultConversationSettings: ConversationSettings = {
   topicsToAvoid: [],
   phrasesToAvoid: [],
   scanIntervalMs: 1200,
+  privateSession: false,
 };
 
 const maxItems = 12;
@@ -44,6 +46,7 @@ export function sanitizeConversationSettings(value: unknown): ConversationSettin
     topicsToAvoid: cleanList(source.topicsToAvoid),
     phrasesToAvoid: cleanList(source.phrasesToAvoid),
     scanIntervalMs: scanIntervals.includes(source.scanIntervalMs as typeof scanIntervals[number]) ? source.scanIntervalMs as number : defaultConversationSettings.scanIntervalMs,
+    privateSession: Boolean(source.privateSession),
   };
 }
 

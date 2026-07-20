@@ -1,82 +1,183 @@
 # Cadence
 
-Cadence is a real-time communication companion for people with ALS. It listens to a conversation, prepares short replies in the user’s voice, and lets the user speak with one tap instead of composing a full message under time pressure.
+**Cadence helps people with ALS and other AAC users stay part of a live conversation.**
 
-**North star:** help a person stay present in a fast conversation—in their own words, in time to matter.
+When someone speaks, Cadence listens, prepares a few short replies in the user's voice, and makes them ready to speak with one tap. The user can also correct the context, hold their turn, express a need, or start a topic themselves.
 
-> Cadence is an assistive communication prototype, not a medical device or a replacement for an AAC assessment, speech-language pathologist (SLP), or emergency care plan.
+> Cadence is an early assistive communication prototype. It is not a medical device, emergency tool, or replacement for an AAC assessment, speech-language pathologist, or care plan.
 
-## Why Cadence
+## The Problem
 
-Traditional AAC can be powerful, but live conversation still creates a timing problem: by the time someone types a response, the moment may have passed. Cadence stages grounded, diverse reply choices before the user acts; it also supports starting a conversation rather than only reacting.
+Conversation moves faster than many AAC systems can be operated. Even a thoughtful message can arrive after the subject has changed. That can turn a group conversation into something a person only reacts to from the edge.
 
-**Novelty:** other tools help compose a message faster; Cadence prepares real-time conversational presence in the user’s own voice and supports initiating as well as responding.
+Cadence is built around a different goal: **make the user's next turn ready before the moment passes.**
 
-## What It Does
+- It prepares several grounded choices, not one forced answer.
+- It keeps every spoken word under the user's control.
+- It supports starting a conversation, not only replying.
+- It keeps essential communication available when the network or model is unavailable.
 
-## Technology and Connectivity
+**What is different:** many tools help compose a message faster. Cadence is a live conversation layer that helps a person respond, repair a misunderstanding, hold the floor, and initiate in their own voice.
 
-| Capability | Technology | Connection needed? |
+## What a Person Can Do
+
+| In the moment | How Cadence helps |
+| --- | --- |
+| Someone says something | Shows captions and prepares 3 to 4 reply options. |
+| A reply feels right | Tap it to preview or speak it. |
+| The caption is wrong | Use **Wrong context**, edit the caption, or rename the speaker locally. |
+| The user needs time | Tap **Hold the floor** for a natural floor-holding phrase. |
+| The user has a need | Open **My needs** for editable care, comfort, and urgency phrases. |
+| The user wants to lead | Choose **Start something** for user-led conversation openers. |
+| Internet is down | Use saved replies, needs, feelings, the backup board, and device voice. |
+
+## Why It Matters
+
+Many people with ALS eventually lose functional speech. AAC can be life-changing, but adoption can be affected by training time, fatigue, access method fit, and communication-partner support. Cadence is designed to reduce the pressure of live conversation without taking authorship away from the user.
+
+| Common barrier | Cadence response |
+| --- | --- |
+| A long learning curve | Ready-to-tap replies, plain-language onboarding, and contextual help. |
+| High effort or eye-gaze fatigue | Large targets, low-effort quick phrases, and adjustable single-switch scanning. |
+| Partner-training burden | Conversation partners can talk normally while Cadence prepares choices. |
+| Loss of agency | User-led openers, personal voice, editing, rejection, and context repair. |
+| A service or connection failure | Local fallback replies, device speech, a backup board, and saved essentials. |
+
+Background reading: [ALS speech loss](https://pubmed.ncbi.nlm.nih.gov/37760880/), [AAC fit and support](https://pmc.ncbi.nlm.nih.gov/articles/PMC6924798/), [AAC abandonment research](https://pubmed.ncbi.nlm.nih.gov/17114167/), and [eye-gaze AAC in ALS](https://pmc.ncbi.nlm.nih.gov/articles/PMC11530652/).
+
+Cadence does not claim clinical effectiveness. The next validation step is voluntary testing with AAC users, family members, caregivers, and speech-language pathologists.
+
+## Research-Informed Design
+
+Cadence is informed by publicly available research and guidance. These sources shaped the design priorities below. They do not validate Cadence itself, and Cadence does not reproduce their text, figures, branding, datasets, or participant data.
+
+| Public source | Design insight used | Cadence response |
 | --- | --- | --- |
-| App interface | Next.js, React, TypeScript, Tailwind CSS | No after loading |
-| Live captions | Browser Web Speech API | Browser-dependent; typically online |
-| Reply generation and quality voice | OpenAI Responses API and Audio Speech | Yes, only after real-mode consent |
-| Instant device voice | Browser `speechSynthesis` | No; browser/device-dependent |
-| Saved voice, details, memory, phrases | Browser `localStorage` | No — stays on the device |
-| Offline essentials | Local reply fallback, device speech, backup board | No |
-| Hosting and aggregate page analytics | Vercel and Vercel Web Analytics | Yes |
+| [ASHA AAC Practice Portal](https://www.asha.org/practice-portal/professional-issues/augmentative-and-alternative-communication/) | AAC use depends on the person, access method, environment, and communication partners. | Large targets, switch scanning, personal setup, conversation kits, and a partner-friendly live flow. |
+| [AAC abandonment study](https://pubmed.ncbi.nlm.nih.gov/17114167/) | Adoption can be limited by effort, training, support, and fit. | One-tap staged choices, short onboarding, local phrase editing, and no required partner app or account. |
+| [AAC fit and support study](https://pmc.ncbi.nlm.nih.gov/articles/PMC6924798/) | Communication technology must fit real goals and daily contexts. | Personal voice, details, boundaries, saved kits, needs, feelings, and user-led openers. |
+| [Eye-gaze AAC in ALS study](https://pmc.ncbi.nlm.nih.gov/articles/PMC11530652/) | Access effort and fatigue matter in ALS communication. | Minimal taps, configurable scanning, fast quick phrases, hold-the-floor, and offline backup access. |
+| [ALS speech analysis study](https://pubmed.ncbi.nlm.nih.gov/37760880/) | Speech changes and speech loss are significant parts of ALS progression. | Captions plus user-controlled text-to-speech, with no requirement that the user speak to use Cadence. |
+| [Google SpeakFaster paper](https://research.google/pubs/using-large-language-models-to-accelerate-communication-for-eye-gaze-typing-users-with-als/) | Language models can reduce interaction effort for AAC communication. | Diverse structured reply choices, style-guided wording, and an internal tap-savings metric with a non-comparability caveat. |
+| [W3C WCAG 2.2](https://www.w3.org/TR/WCAG22/) | Target size, visible focus, keyboard operation, and clear status feedback are essential access requirements. | Large controls, focus rings, modal focus trapping, Escape support, keyboard navigation, live announcements, and responsive layouts. |
 
-**More → About** shows current connection, caption, and online-AI permission status without exposing conversation content.
+### Responsible use of research
 
-### Live conversation
+- We link to original public sources instead of copying substantial text or visual material.
+- We describe design inspiration, not clinical outcomes or endorsements.
+- We do not claim Cadence is superior to another product without comparable testing.
+- The SpeakFaster result is cited as context only. Cadence's local tap estimate uses a different method and is not a benchmark comparison.
+- Real usability feedback and accessibility testing remain necessary before broad public or clinical claims.
 
-- Shows a compact rolling room transcript.
-- Uses the browser’s Web Speech API for ambient captions—no transcription API key required.
-- Uses one stable interim caption to pre-warm a reply request, then replaces it with the confirmed final caption after a 150 ms debounce; superseded requests are cancelled and only one is in flight.
-- Gives each reply a diverse conversational intent: agree, ask, react, joke, redirect, or reply.
-- Provides **Start something** for four user-led conversation openers.
-- Supports a keyword/idea steer and tone adjustment (`warm`, `firm`, `funny`).
+## How It Works
 
-### Trust and control
+```mermaid
+flowchart LR
+    A[Conversation in the room] --> B[Browser live captions]
+    B --> C[Local context manager]
+    D[User voice, details, memory, settings] --> C
+    C --> E{MOCK_MODE?}
+    E -->|Yes| F[Local mock and offline replies]
+    E -->|No, with consent| G[Next.js API routes]
+    G --> H[OpenAI Responses API]
+    F --> I[Reply cards and quick phrases]
+    H --> I
+    I --> J[User chooses, edits, or rejects]
+    J --> K[Device voice or streamed OpenAI speech]
+```
 
-- A reply is never spoken automatically.
-- Optional preview-before-speak lets the user edit a reply, make it shorter, ask for “more like me,” save it, reject it, or block it from future suggestions.
-- The user can stop active audio playback.
-- Low-confidence browser captions are held out of prediction until the user confirms or edits them with **Fix caption**.
-- **Who said this?** lets the user rename any caption speaker locally. Cadence never treats this as an automatic voice-identification guess.
-- Conversation setup stores a mode, energy level, people present, and topic/phrasing boundaries locally; low energy requests fewer choices and slows scanning.
+1. **Listen:** the browser's Web Speech API creates live captions when the user turns on Listen.
+2. **Prepare:** Cadence combines recent confirmed captions with user-approved style, personal details, local memory, and conversation boundaries.
+3. **Choose:** the user taps, edits, shortens, saves, rejects, or repairs a reply before it is spoken.
+4. **Speak:** Cadence uses instant device speech or selected OpenAI speech. Nothing is spoken automatically.
 
-### Fast expression and fallbacks
+## Product Highlights
 
-- One-tap quick reactions, feelings, tone choices, custom speech, **My needs**, and **Hold the floor**.
-- Editable needs and feelings are stored locally.
-- An always-available **Offline backup board** combines saved needs, feelings, and favorite replies without depending on listening or prediction.
-- **Instant device voice** speaks immediately with the browser's built-in voice; users can switch back to a selected OpenAI voice for higher-quality streamed speech.
-- The backup board downloads a plain-text communication plan for family or care teams.
-- Last generated reply cards are retained locally for recovery when replies are temporarily unavailable.
-- OpenAI MP3 output begins playing from the first streamed audio chunk in supported browsers instead of waiting for the full file.
+### Conversation support
 
-### Personalization and continuity
+- 3 to 4 diverse replies with intents such as agree, ask, react, joke, redirect, and reply.
+- **Start something** offers user-led openers grounded in the saved voice and context.
+- Keyword or spoken idea steering, plus warm, firm, and funny tone choices.
+- Speculative prediction starts from a stable interim caption and final captions replace it after a 150 ms debounce. Superseded requests are cancelled and only one prediction request is in flight.
+- Reply preview shows the caption that grounded a reply. **Wrong context** removes it and offers one-tap Undo.
+- Low-confidence captions stay out of prediction until the user confirms or fixes them.
+- **Who said this?** and **Words Cadence should recognize** are local, user-confirmed corrections. Cadence never silently treats an inferred voice identity as fact.
 
-- **Your voice:** paste sample messages to generate, review, and edit a compact style card.
-- **Personal details:** preferred name, full name, pronouns, and optional context for relevant grounding.
-- **Local memory:** small rolling lists of people and topics; the user can inspect and clear them.
-- **Saved replies:** users can favorite useful replies and block unwanted suggestions.
+### Personalization and agency
 
-### Access and learning
+- **Your voice** turns sample messages into a compact style card that the user can review and edit.
+- **Personal details** stores a preferred name, full name, pronouns, and optional context locally.
+- Local memory tracks a small, viewable, clearable set of people and topics.
+- Conversation kits save local settings for situations such as family dinner, a doctor visit, or work.
+- Users can favorite replies, request shorter wording, ask for something more like them, reject a reply, or block future suggestions like it.
 
-- Large touch targets, high contrast, visible focus states, keyboard navigation, and screen-reader labels/live announcements.
-- Light and dark themes follow the system setting on first visit; the user's choice persists locally.
-- Single-switch scanning with Space/Enter or a large Select button; scan speed is configurable.
-- The backup board is included in scanning mode.
-- Optional four-step tutorial from the welcome screen or **More → About → Take the tour**.
-- Contextual `i` help explains secondary response controls on hover, focus, and tap.
+### Fast and reliable expression
 
-## Using Cadence
+- One-tap quick reactions, feelings, custom speech, **My needs**, and **Hold the floor**.
+- Editable needs and feelings persist locally.
+- The offline backup board keeps needs, feelings, favorites, and saved reply cards accessible without listening or AI.
+- **Instant device voice** gives fast browser speech. Selected OpenAI voices provide higher-quality streamed speech when online.
+- A 24-hour local session keeps the active transcript, staged replies, and Spoken log through a refresh.
 
-For a simple, non-technical guide for users, families, and care teams, see [Using Cadence](docs/Using-Cadence.md).
+### Accessibility
 
-## Quick Start
+- Large touch targets, high contrast, responsive tablet and mobile layouts, and visible focus rings.
+- Keyboard support, screen-reader labels and live announcements, hover/focus/tap information tips.
+- Single-switch scanning works with Space or Enter and has a configurable scan speed.
+- Every modal traps keyboard focus, supports Escape to close, and restores focus to the control that opened it.
+- Light and dark themes respect the user's choice and persist locally.
+
+## Privacy, Consent, and Safety
+
+Cadence has no account system and no Cadence application database.
+
+- Personal details, style card, local memory, phrase lists, preferences, kits, and session recovery are stored in this browser's `localStorage`.
+- The user can inspect memory, clear the active session, erase all local Cadence data, or enable **Private session**. Private session prevents new captions, replies, memory, and diagnostic events from being retained locally.
+- Cadence does not persist microphone audio.
+- In real mode, only the context needed for a user-requested prediction, rewrite, style learning, or speech action is sent to OpenAI. Responses requests set `store: false`.
+- Real mode requires explicit in-app consent before a request is sent.
+- Browser speech recognition is provided by the browser or its vendor. Users should review the browser's own privacy controls before turning on Listen.
+- Local storage is not encrypted by Cadence. Use a locked device and clear local data after sensitive testing.
+
+See [Using Cadence](docs/Using-Cadence.md) for a simple guide and [Pilot Protocol](docs/Pilot-Protocol.md) for privacy-preserving voluntary testing.
+
+## Technology
+
+| Area | Implementation |
+| --- | --- |
+| Web app | Next.js App Router, React, strict TypeScript, Tailwind CSS |
+| Live captions | Browser Web Speech API, with graceful unsupported and permission states |
+| Reply intelligence | OpenAI Responses API, `gpt-5.6-luna`, low reasoning effort, structured JSON |
+| Spoken output | Streamed OpenAI Audio Speech or browser `speechSynthesis` |
+| Personalization | Local style card, profile, memory, vocabulary corrections, and conversation kits |
+| Offline support | Local reply/opening fallback, cached static shell, local backup board, device voice |
+| Security | Same-origin request checks, input caps, consent gate, security headers, Vercel WAF guidance, and distributed Upstash Redis rate limiting in real mode |
+| Deployment | Vercel |
+
+### Model and audio interfaces
+
+Server routes keep paid model work separate from the client:
+
+- `app/api/predict`, `initiate`, `expand`, `tone`, `style`, and `speak`
+- `lib/predict.ts`, `expand.ts`, `initiate.ts`, `toneAdjust.ts`, `speak.ts`, and `browser-transcribe.ts`
+- `lib/conversation-service.ts` provides the mock and real-mode boundary.
+
+`MOCK_MODE=1` keeps every model-facing action local and free. `MOCK_MODE=0` enables the consent-gated OpenAI path.
+
+## Built With Codex and GPT-5.6
+
+Cadence uses GPT-5.6 Luna for structured reply prediction, conversation initiation, keyword expansion, tone rewriting, and style-card creation. Low reasoning effort keeps the interaction appropriate for latency-sensitive live conversation. OpenAI Audio Speech handles high-quality online speech, while browser speech synthesis provides an immediate local option.
+
+| Product decision | Why it matters | Codex and GPT-5.6 contribution |
+| --- | --- | --- |
+| Prepare choices before the user acts | A late reply can miss the conversational moment. | Codex implemented cancellation and speculative prediction; GPT-5.6 returns varied structured candidates. |
+| Keep the user in charge | AAC must preserve authorship and consent. | Codex built preview, edit, shorter, reject, save, block, and context-repair controls around model output. |
+| Work through failure | Conversation should not stop when a network or provider fails. | Codex built mock mode, local fallbacks, backup board, device speech, and 24-hour session recovery. |
+| Support limited motor control | The main path must not rely on precise pointing. | Codex implemented scanning, keyboard operation, focus management, accessible labels, and responsive layouts. |
+| Protect user data and paid routes | Sensitive context and paid APIs need strong boundaries. | Codex added consent gating, validation, rate limiting, security headers, and local-first controls. |
+| Measure participation, not only speed | Being heard matters more than a single efficiency number. | Codex added local metrics, debug timing, and an evaluation harness with clear caveats. |
+
+## Run Locally
 
 Requirements: Node.js 20+ and npm.
 
@@ -86,181 +187,54 @@ $env:MOCK_MODE="1"
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000` for the landing page or `http://localhost:3000/app` for Cadence.
 
-- `/` is the landing page.
-- `/app` is the live communication companion.
+### Quick Demo
 
-### Judge Quick Start
+1. Open `/app`.
+2. Select **More**, then **Play demo conversation**.
+3. Tap a reply card. It enters the Spoken panel and plays with the configured voice.
+4. Try **Start something**, **My needs**, or **Hold the floor**.
+5. Open **More ways to respond** for quick reactions, feelings, tone, and exact custom speech.
+6. Turn off the network to verify local replies, phrase lists, backup board, and device speech fallback.
 
-Use mock mode to review the complete experience without an API key, microphone, or network connection:
-
-1. Open `/app`, then choose **More → Play demo conversation**.
-2. Tap a prepared reply to see it enter the Spoken panel.
-3. Choose **Start something** to show user-led openers.
-4. Open **My needs** or the backup-board icon for essential communication.
-5. Turn off the network to verify local reply cards, saved phrases, and device speech fallback.
-
-The reset is deterministic and does not alter the user's saved voice, personal details, or preferences.
-
-### Mock mode
-
-`MOCK_MODE=1` is the default safe development mode. Prediction, initiation, expansion, style learning, tone changes, and speech run through local mocks—no API key and no model/audio cost.
-
-Browser live captions still use the browser’s Web Speech API when the user turns **Listen** on. Browser support varies; Chrome and Edge are recommended.
-
-### Real mode
+## Real Mode Configuration
 
 Create an ignored `.env.local` file:
 
 ```bash
 MOCK_MODE=0
 OPENAI_API_KEY=your_openai_key
+UPSTASH_REDIS_REST_URL=your_upstash_rest_url
+UPSTASH_REDIS_REST_TOKEN=your_upstash_rest_token
 TTS_MODEL=gpt-4o-mini-tts
 TTS_VOICE=marin
 ```
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `MOCK_MODE` | No | Set `1` for local mocks; set `0` for real OpenAI generation and TTS. |
-| `OPENAI_API_KEY` | Real mode | Server-only key for OpenAI Responses and Audio Speech. |
-| `UPSTASH_REDIS_REST_URL` | Real mode | Server-only HTTPS URL for the production distributed rate-limit store. |
-| `UPSTASH_REDIS_REST_TOKEN` | Real mode | Server-only token for the production distributed rate-limit store. |
-| `TTS_MODEL` | No | OpenAI text-to-speech model; defaults to `gpt-4o-mini-tts`. |
-| `TTS_VOICE` | No | Default OpenAI voice; defaults to `marin`. A user can choose a built-in voice locally in **More → Speaking voice** without changing this variable. |
+| `MOCK_MODE` | No | `1` uses free local mocks. `0` enables real OpenAI requests. |
+| `OPENAI_API_KEY` | Real mode | Server-only key for Responses and Audio Speech. |
+| `UPSTASH_REDIS_REST_URL` | Real mode | Server-only distributed rate-limit endpoint. |
+| `UPSTASH_REDIS_REST_TOKEN` | Real mode | Server-only distributed rate-limit token. |
+| `TTS_MODEL` | No | Defaults to `gpt-4o-mini-tts`. |
+| `TTS_VOICE` | No | Defaults to `marin`; users may choose a supported OpenAI voice locally. |
 
-Never expose an API key through `NEXT_PUBLIC_*`, client code, screenshots, or commits.
+Never expose secrets in `NEXT_PUBLIC_*` variables, client code, screenshots, or commits.
 
-### Vercel Production Setup
+### Production checklist
 
-1. Import the repository, keep `MOCK_MODE=1` for preview deployments, and set `MOCK_MODE=0` only for Production.
-2. Add `OPENAI_API_KEY` and optional TTS variables only to the Production environment; redeploy after changing variables.
-3. Create an Upstash Redis database and add `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to **Production** only. With `MOCK_MODE=0`, Cadence fails closed (503) if this distributed limiter is unavailable, protecting the paid OpenAI key.
-4. In **Vercel -> Firewall**, publish a WAF rate-limit rule for `/api/*`: match requests whose path starts with `/api/`, key by IP, use a 60-second fixed window with a 20-request limit, and return `429`. Start in **Log** mode briefly, then publish the blocking rule. Keep Vercel's DDoS mitigation enabled.
-5. Keep `MOCK_MODE=1` in Preview. Use real mode only in Production after the WAF rule and Upstash variables are live.
-6. Monitor `/api/health` for deployment availability. It returns only `{ status, mode }` and never conversation content.
-7. Enable platform error/latency alerts with transcript, profile, and speech-content collection disabled.
+1. Keep `MOCK_MODE=1` in Vercel Preview deployments.
+2. Set `MOCK_MODE=0`, `OPENAI_API_KEY`, and both Upstash variables only in Production.
+3. Publish a Vercel WAF IP rate-limit rule for `/api/*`, 20 requests per 60 seconds, returning `429`.
+4. In real mode, Cadence fails closed with `503` before a paid call if Upstash is not available.
+5. Confirm `/api/health` after deployment. It returns only `{ status, mode }`.
 
-## First Use
+## Evaluation and Testing
 
-1. Choose **Start** in the welcome dialog to reach prepared reply cards immediately, or choose **Show me how** for the short guided tour.
-2. Turn **Listen** on when browser captions are useful. Grant microphone permission only when prompted.
-3. Tap a reply card to preview/speak it, or use **Start something** to initiate a topic.
-4. Open **More** to select instant or OpenAI speech, set up a learned voice, personal details, local memory, scanning, demo playback, debug recording, a local session, or the tutorial.
-5. Open **More ways to respond** when needed for quick reactions, feelings, tone, generated wording, or exact custom speech.
-6. Use **My needs**, **Hold the floor**, or the backup-board icon for fast fallback communication.
-
-## Privacy and Local Data
-
-Cadence has no account and no application database. The following values are stored in this browser’s `localStorage` so the interface can recover and personalize locally:
-
-| Local key | Contents |
-| --- | --- |
-| `cadence.lastSuggestions` | Most recent generated reply cards for local recovery. |
-| `cadence.session` | Active transcript, staged replies, and Spoken log; automatically expires after 24 hours. |
-| `cadence.styleCard` | Learned or edited voice style card. |
-| `cadence.profile` | Optional personal details, saved locally as they are entered. |
-| `cadence.memory` | Extracted people and topics—not a full transcript. |
-| `cadence.needs` / `cadence.feelings` | Editable quick phrases. |
-| `cadence.replyPreferences` | Preview setting, favorites, and blocked suggestions. |
-| `cadence.conversationSettings` | Mode, energy, boundaries, and scan speed. |
-| `cadence.theme` | Chosen light or dark display theme. |
-| `cadence.tone` | Chosen warm, firm, or funny delivery preference. |
-| `cadence.speechOutput` / `cadence.ttsVoice` | Selected instant-device or OpenAI speech output and OpenAI voice. |
-| Onboarding flags | First-run and first-success state. |
-| `cadence.debugLog` | Sensitive diagnostic events **only when the user explicitly enables debug recording**. |
-
-Cadence does **not** persist microphone audio. Its active text session (transcript, staged replies, and Spoken panel) is stored locally for up to 24 hours so a refresh does not erase the conversation. Use **More -> Clear this session** to remove it immediately.
-
-Use the in-app **Privacy** control to review real-mode data handling, grant real-mode consent, or erase every `cadence.*` value stored on the device. Real OpenAI routes reject requests until that consent is present; mock mode and offline essentials do not require it.
-
-In mock mode, model and speech content stays on-device. In real mode, Cadence sends only context required for the user-requested OpenAI prediction, initiation, rewrite, style-learning, or speech request. Responses API requests set `store: false`. The browser’s Web Speech implementation is controlled by the browser/vendor; review that browser’s privacy controls before enabling Listen.
-
-Local storage is not encrypted by Cadence. Use a locked device, avoid shared browser profiles, and clear local memory/debug logs after sensitive testing.
-
-## Offline Behavior
-
-In production, Cadence registers a small service worker after the first successful visit. It caches only the static app shell and framework assets for offline startup.
-
-- API responses, transcripts, and audio are **never** cached by the service worker.
-- The local backup board, needs, feelings, favorites, settings, and last reply cards remain available from browser storage.
-- When offline, Cadence generates simple local reply cards and openers, keeps quick phrases and custom speech available, and uses the device's built-in speech synthesis when supported.
-- Live model generation and browser captions require their respective network/browser services.
-
-For a real communication plan, keep the downloaded plan and other low-tech backups available independently of the web app.
-
-## Architecture
-
-```text
-Browser SpeechRecognition ──> rolling transcript ──> local context manager
-                                                   └─> speculative prediction
-
-local profile + voice + memory + settings ──> Next.js API routes ──> OpenAI Responses
-
-reply / quick phrase / backup board ──> streamed OpenAI Speech or device speech ──> playback
-```
-
-- **Client:** Next.js App Router, React, TypeScript strict mode, Tailwind CSS.
-- **Model routes:** `app/api/predict`, `initiate`, `expand`, `tone`, `style`, and `speak`.
-- **Model interfaces:** `lib/predict.ts`, `expand.ts`, `toneAdjust.ts`, `style-card.ts`, `initiate.ts`, `speak.ts`, and `browser-transcribe.ts`.
-- **Mock/real boundary:** `lib/conversation-service.ts` and `MOCK_MODE`.
-- **Local resilience:** 24-hour local session, browser storage, static shell service worker, backup board, and last suggestions.
-
-## Built With Codex and GPT-5.6
-
-Cadence uses GPT-5.6 Luna through the OpenAI Responses API with low reasoning effort for latency-sensitive, structured reply prediction, initiation, keyword expansion, tone rewriting, and style-card creation. OpenAI Audio Speech streams real-mode spoken output; users can choose immediate local device speech when speed or offline use matters more.
-
-Codex accelerated the implementation of the App Router interface, typed service boundaries, structured model routes, accessibility controls, mock/real fallbacks, local-first persistence, rate-limit hardening, offline recovery, and the evaluation harness. Product decisions remained focused on the ALS communication problem: replies must arrive before the moment passes, remain in the user's voice, and never depend on a single networked service.
-
-## Submission Demo
-
-For a short demo video, show one complete story: reset the dinner demo; tap a prepared reply; add personal details or a style card; use **Start something**; open **My needs**; then disconnect and show that local reply cards and phrases remain usable. Explain that GPT-5.6 produces structured, grounded choices in real mode while `MOCK_MODE=1` makes the same flow safe for judges to run locally.
-
-## Security and Cost Controls
-
-- `.env.local` is Git-ignored; secrets are server-only.
-- All paid API routes require same-origin JSON requests, bound bodies and field sizes, validate nested data, and return generic failures rather than provider errors.
-- In `MOCK_MODE=1`, API endpoints use lightweight endpoint-scoped, per-IP in-memory rate limiting (20 requests/minute per endpoint/IP) for zero-config development and tests.
-- In real mode, API endpoints use a durable Upstash Redis sliding-window limiter (20 requests/minute per endpoint/IP). Missing or unavailable Redis returns `503` before any paid provider call.
-- Production responses set a Content Security Policy, anti-framing headers, strict referrer policy, MIME-sniffing protection, restrictive browser permissions, and no-index metadata.
-- The live app and API routes send `Cache-Control: no-store`; the service worker intentionally caches only static shell/framework resources.
-- Debug recording is opt-in, bounded, local-only, viewable, exportable, and clearable from **More**.
-
-### Deployment requirement
-
-Real mode requires the two Upstash environment variables above. Vercel WAF configuration remains an account-level deployment step: publish the `/api/*` IP rate-limit rule described in **Vercel Production Setup** before inviting public testers.
-
-## Accessibility and Access Methods
-
-- All critical controls are designed as large, labeled buttons with keyboard focus styling.
-- Reply cards, quick phrases, needs, feelings, backup board, and floor-holding actions can be selected by touch or keyboard.
-- Scanning uses Space/Enter and supports Bluetooth switches that emit those keys.
-- Scan speed is configurable in **More ways to respond → Set up**.
-- Tooltips work with hover, keyboard focus, and touch.
-- No operation requires a gesture more complex than a tap/click or keyboard activation.
-
-Real switch, eye-gaze, head-pointer, landscape-tablet, and screen-reader testing should be completed with actual users and assistive technology before clinical or public deployment.
-
-## Impact and Evaluation
-
-Cadence computes each session’s estimated typing-time savings from actual spoken message length using a stated 15 words/minute AAC typing baseline. `npm run eval` runs three canned fixtures once and reports candidate count, intent diversity, and an internal tap/keystroke estimate. It shows Google SpeakFaster’s published 57% motor-action-savings figure only as context; the measures are not a direct benchmark comparison.
-
-The more meaningful outcome measures are participation: replies spoken, conversations initiated, time to response, edit/reject rate, and whether suggestions sound like the user. Those measures should be evaluated in a supervised pilot with people who use AAC, their communication partners, and SLPs.
-
-Communication loss is common in ALS; research estimates that many people eventually lose functional speech, while AAC adoption also depends on fit, training, support, and fatigue. [Acoustic voice analysis study](https://pubmed.ncbi.nlm.nih.gov/37760880/), [AAC fit study](https://pmc.ncbi.nlm.nih.gov/articles/PMC6924798/), [AAC abandonment study](https://pubmed.ncbi.nlm.nih.gov/17114167/), [ALS eye-gaze study](https://pmc.ncbi.nlm.nih.gov/articles/PMC11530652/).
-
-| AAC barrier | Cadence response |
-| --- | --- |
-| Learning curve | Ready-to-tap replies, a short tour, and contextual help. |
-| Effort and eye-tracking fatigue | Minimal taps, single-switch scanning, adjustable scan speed, and backup phrases. |
-| Partner-training burden | Conversation partners can speak normally while Cadence prepares options. |
-| Connection and agency | Personal voice, quick feelings, user-led openers, and “Hold the floor.” |
-| Technology failure | Local needs/feelings/favorites, last replies, backup board, and downloadable plan. |
-
-## Development Commands
+Cadence estimates typing-time savings from the actual length of each spoken message using a stated baseline of 15 words per minute. It also tracks replies spoken, conversation initiations, response time, edits, and rejections locally.
 
 ```powershell
-npm run dev
 npm run typecheck
 npm run lint
 npm run build
@@ -268,21 +242,15 @@ npm run eval
 npm run test:e2e
 ```
 
-`npm run test:e2e` starts Cadence in `MOCK_MODE=1` and verifies onboarding, speaking a staged reply, local profile persistence, needs phrases, and offline fallback behavior in Chromium.
+- `npm run eval` runs three canned fixtures once and reports candidate count, intent diversity, and an internal tap/keystroke estimate.
+- The Google SpeakFaster 57% motor-action-savings result is shown only as context. Cadence's internal estimate is not a direct benchmark comparison.
+- `npm run test:e2e` runs the mock-mode Chromium flow for onboarding, personalization, vocabulary, kits, private session, context repair, needs, offline fallback, privacy controls, and API guards.
 
-Run the full verification suite before handing off changes:
+## Current Limits and Next Validation
 
-```powershell
-npm run typecheck
-npm run lint
-npm run build
-```
-
-## Current Limitations and Next Validation
-
-- Browser live-caption accuracy and confidence signals vary by platform.
-- Configure the documented Vercel Firewall `/api/*` rule before a broad public real-mode launch; the application-level Redis limiter is already durable and fail-closed.
-- The service worker supports app-shell recovery, not offline AI, browser captions, or network TTS; device speech remains available when the browser supports it.
-- Interim captions optimize perceived speed but remain provisional; final captions replace their speculative replies.
-- Cadence has not yet completed a formal usability study with people with ALS, AAC users, caregivers, or SLPs.
-- Treat the downloaded communication plan as a convenience document; maintain clinician-recommended low-tech backup methods as well.
+- Browser caption accuracy and confidence signals vary by platform and environment.
+- Cadence does not do automatic speaker identification. Speaker labels are user-confirmed local labels.
+- The service worker supports offline app-shell recovery, not offline AI, browser captions, or online TTS.
+- Real mode requires Vercel WAF and Upstash configuration before broad public testing.
+- Cadence needs structured voluntary usability feedback from people who use AAC, family members, caregivers, and SLPs before any clinical or broad public claim.
+- Keep clinician-recommended low-tech communication backups available alongside the app.

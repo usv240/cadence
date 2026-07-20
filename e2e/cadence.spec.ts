@@ -45,6 +45,54 @@ test("personal details persist after a reload", async ({ page }) => {
   await expect(page.getByLabel("Full name")).toHaveValue("Avery Morgan");
 });
 
+test("confirmed vocabulary and conversation kits persist locally", async ({ page }) => {
+  await openFreshApp(page);
+  await skipOnboarding(page);
+
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Words Cadence should recognize" }).click();
+  await page.getByLabel("One correction per line").fill("Jogn = John\nMya = Maya");
+  await page.getByRole("button", { name: "Save words" }).click();
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("cadence.personalVocabulary"))).toContain("Jogn");
+
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Conversation kits" }).click();
+  await page.getByLabel("Name this conversation kit").fill("Family dinner");
+  await page.getByRole("button", { name: "Save kit" }).click();
+  await expect(page.getByRole("heading", { name: "Family dinner" })).toBeVisible();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+
+  await page.reload();
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Conversation kits" }).click();
+  await expect(page.getByRole("heading", { name: "Family dinner" })).toBeVisible();
+});
+
+test("private sessions do not persist active conversation recovery", async ({ page }) => {
+  await openFreshApp(page);
+  await skipOnboarding(page);
+  await page.getByRole("button", { name: "Private session", exact: true }).click();
+  await expect(page.getByText(/Private session is on/)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("cadence.lastSuggestions"))).toBeNull();
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("cadence.session"))).toBeNull();
+});
+
+test("a user can inspect and reject the caption context behind a reply", async ({ page }) => {
+  await openFreshApp(page);
+  await skipOnboarding(page);
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Play demo conversation" }).click();
+
+  const reply = page.getByRole("button", { name: /Speak .* reply:/ }).first();
+  await reply.click();
+  await expect(page.getByText("Based on the latest caption")).toBeVisible();
+  await page.getByRole("button", { name: "Wrong context" }).click();
+  await expect(page.getByRole("button", { name: "Review uncertain caption" })).toBeVisible();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Make it yours." })).toHaveCount(0);
+});
+
 test("needs phrases speak and appear in the spoken log", async ({ page }) => {
   await openFreshApp(page);
   await skipOnboarding(page);

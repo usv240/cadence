@@ -34,6 +34,7 @@ Cadence does not guess who someone is by their voice.
 
 - Tap **Who said this?** next to a caption to give that person a local label.
 - Tap **Fix caption** when Cadence says it is unsure about a caption. Confirm or edit it before it is used for replies.
+- Choose **Words** near the top of the app to save caption corrections such as `Jogn = John`. These corrections stay on the device and correct text only; Cadence never guesses who spoke.
 
 ### Use a short idea or your exact words
 
@@ -64,6 +65,8 @@ This is optional. Open **More** and choose:
 - **Your voice:** paste a few messages you have written. Cadence makes a short style card that you can review and edit.
 - **Personal details:** add the name you use, pronouns, interests, or important context. Only add what you are comfortable saving on this device.
 - **What Cadence remembers:** see and clear the small local list of people and topics it has noticed.
+- **Words:** save recurring names, nicknames, places, or terms that the browser often hears incorrectly.
+- **Kits:** save a conversation setup such as family dinner, doctor visit, or work, then restore it later.
 
 The more you adjust Cadence, the more it can become familiar—but you never have to share more than you want.
 
@@ -91,6 +94,8 @@ You may see a message that live replies are unavailable. You can still use the q
 ## Saving and clearing a conversation
 
 Cadence saves the active transcript, ready replies, and Spoken history **only in this browser** for up to 24 hours. This means refreshing the page does not erase the conversation.
+
+For a sensitive conversation, turn on **Private session** near the top of the app. New captions, replies, memory, and debug events will not be kept after the page closes or reloads. This does not replace the normal real-mode consent needed for OpenAI features.
 
 - Open **More -> Clear this session** when you want to remove the active conversation immediately.
 - Open **Privacy -> Erase all local data** to remove all Cadence settings, phrases, profile details, memory, and session data from this device.
