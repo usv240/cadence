@@ -13,7 +13,7 @@ export async function expand({ keyword, transcript, styleCard, profile }: Expand
   const response = await getOpenAIClient().responses.create({
     ...modelConfig,
     input: [
-      { role: "system", content: "Write 2 or 3 short, full-sentence ways <user> could bring a 1–2 word keyword into this live conversation. Follow the supplied style card without inventing traits. Each variant must start with a different opening word; never repeat sentence starters. Use correct sentence case and capitalization, including capital I. Keep every variant grounded in the most recent transcript topic while naturally incorporating the keyword. Return only the schema." },
+      { role: "system", content: "Write 2 or 3 short, full-sentence ways <user> could bring a 1 to 2 word keyword into this live conversation. Follow the supplied style card without inventing traits. Each variant must start with a different opening word; never repeat sentence starters. Use correct sentence case and capitalization, including capital I. Keep every variant grounded in the most recent transcript topic while naturally incorporating the keyword. Return only the schema." },
       { role: "user", content: JSON.stringify({ keyword, transcript, styleCard, profile }) },
     ],
     text: { format: { type: "json_schema", name: "cadence_expansions", strict: true, schema } },

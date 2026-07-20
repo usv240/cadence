@@ -8,10 +8,12 @@
     "start": "node node_modules/next/dist/bin/next start",
     "lint": "node node_modules/next/dist/bin/next lint",
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
+    "test:unit": "node --import tsx --test tests/**/*.test.ts",
     "eval": "node node_modules/tsx/dist/cli.mjs evals/run.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test --workers=1"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.35",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.35.3",
     "@vercel/analytics": "^2.0.1",

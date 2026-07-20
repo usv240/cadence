@@ -51,6 +51,9 @@ Cadence does not claim clinical effectiveness. The next validation step is volun
 
 Cadence is informed by publicly available research and guidance. These sources shaped the design priorities below. They do not validate Cadence itself, and Cadence does not reproduce their text, figures, branding, datasets, or participant data.
 
+See [UX and performance research notes](docs/UX-PERFORMANCE-RESEARCH.md) for the current lightweight runtime budget, eye-gaze safeguards, and the design review checklist.
+See [competitive landscape and source boundaries](docs/COMPETITIVE-LANDSCAPE.md) or the public [research and sources page](/research) for a plain-language comparison with established AAC, predictive text, personal voice, atypical-speech, and dedicated eye-gaze solutions.
+
 | Public source | Design insight used | Cadence response |
 | --- | --- | --- |
 | [ASHA AAC Practice Portal](https://www.asha.org/practice-portal/professional-issues/augmentative-and-alternative-communication/) | AAC use depends on the person, access method, environment, and communication partners. | Large targets, switch scanning, personal setup, conversation kits, and a partner-friendly live flow. |
@@ -124,6 +127,7 @@ flowchart LR
 - Large touch targets, high contrast, responsive tablet and mobile layouts, and visible focus rings.
 - Keyboard support, screen-reader labels and live announcements, hover/focus/tap information tips.
 - Single-switch scanning works with Space or Enter and has a configurable scan speed.
+- **Experimental eye-gaze focus** uses local MediaPipe face landmarks and a five-point calibration to move the reply highlight. Space, Enter, or Select highlighted is always required before speech.
 - Every modal traps keyboard focus, supports Escape to close, and restores focus to the control that opened it.
 - Light and dark themes respect the user's choice and persist locally.
 
@@ -134,6 +138,7 @@ Cadence has no account system and no Cadence application database.
 - Personal details, style card, local memory, phrase lists, preferences, kits, and session recovery are stored in this browser's `localStorage`.
 - The user can inspect memory, clear the active session, erase all local Cadence data, or enable **Private session**. Private session prevents new captions, replies, memory, and diagnostic events from being retained locally.
 - Cadence does not persist microphone audio.
+- Eye-gaze focus requests camera permission only after the user explicitly starts it. Camera frames, face landmarks, calibration samples, and gaze coordinates are processed locally and are not uploaded or retained. The calibration coefficients alone are stored in this browser and can be removed with local data.
 - In real mode, only the context needed for a user-requested prediction, rewrite, style learning, or speech action is sent to OpenAI. Responses requests set `store: false`.
 - Real mode requires explicit in-app consent before a request is sent.
 - Browser speech recognition is provided by the browser or its vendor. Users should review the browser's own privacy controls before turning on Listen.
@@ -149,6 +154,7 @@ See [Using Cadence](docs/Using-Cadence.md) for a simple guide and [Pilot Protoco
 | Live captions | Browser Web Speech API, with graceful unsupported and permission states |
 | Reply intelligence | OpenAI Responses API, `gpt-5.6-luna`, low reasoning effort, structured JSON |
 | Spoken output | Streamed OpenAI Audio Speech or browser `speechSynthesis` |
+| Eye-gaze beta | MediaPipe Face Landmarker in the browser, local five-point calibration, confirmation-only selection |
 | Personalization | Local style card, profile, memory, vocabulary corrections, and conversation kits |
 | Offline support | Local reply/opening fallback, cached static shell, local backup board, device voice |
 | Security | Same-origin request checks, input caps, consent gate, security headers, Vercel WAF guidance, and distributed Upstash Redis rate limiting in real mode |

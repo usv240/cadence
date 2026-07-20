@@ -1,13 +1,14 @@
 const isDevelopment = process.env.NODE_ENV !== "production";
+const distDir = process.env.NEXT_DIST_DIR;
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://va.vercel-scripts.com${isDevelopment ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com https://vitals.vercel-insights.com",
   "media-src 'self' blob:",
-  "worker-src 'self' blob:",
+  "worker-src 'self' blob: https://cdn.jsdelivr.net",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -22,11 +23,12 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
-  { key: "Permissions-Policy", value: "camera=(), geolocation=(), payment=(), usb=(), interest-cohort=()" },
+  { key: "Permissions-Policy", value: "camera=(self), geolocation=(), payment=(), usb=(), interest-cohort=()" },
 ];
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...(distDir ? { distDir } : {}),
   poweredByHeader: false,
   async headers() {
     return [

@@ -188,14 +188,14 @@ export const conversationService: ConversationService = {
   style: (input) => postJson<StyleOutput>("/api/style", input),
   async speak(text, tone, delivery, voice, onPlaybackStarted, useDeviceVoice = false) {
     if (useDeviceVoice || !navigator.onLine) {
-      speakWithDevice(text, tone, delivery, onPlaybackStarted);
+      await speakWithDevice(text, tone, delivery, onPlaybackStarted);
       return;
     }
     let response: Response;
     try {
       response = await fetchWithTimeout("/api/speak", { method: "POST", headers: requestHeaders(), body: JSON.stringify({ text, tone, delivery, voice }) }, 35_000);
     } catch {
-      speakWithDevice(text, tone, delivery, onPlaybackStarted);
+      await speakWithDevice(text, tone, delivery, onPlaybackStarted);
       return;
     }
     if (response.status === 204) {
@@ -206,12 +206,21 @@ export const conversationService: ConversationService = {
       const retryAfterSeconds = Number(response.headers.get("Retry-After"));
       throw new Error(Number.isFinite(retryAfterSeconds) ? `Cadence needs a short pause. Try speech again in ${retryAfterSeconds} seconds.` : "Cadence needs a short pause. Please try speech again shortly.");
     }
+    if (response.status >= 500) {
+      await speakWithDevice(text, tone, delivery, onPlaybackStarted);
+      return;
+    }
     if (!response.ok) {
       const detail = await response.json().catch(() => ({ error: "Unable to speak this reply." })) as { error?: string };
       throw new Error(detail.error ?? "Unable to speak this reply.");
     }
     this.stopSpeaking();
-    if (await playStreamedAudio(response, onPlaybackStarted)) return;
+    try {
+      if (await playStreamedAudio(response, onPlaybackStarted)) return;
+    } catch {
+      await speakWithDevice(text, tone, delivery, onPlaybackStarted);
+      return;
+    }
     activeAudioUrl = URL.createObjectURL(await response.blob());
     activeAudio = new Audio(activeAudioUrl);
     activeAudio.onended = clearActiveAudio;

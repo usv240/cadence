@@ -90,15 +90,31 @@ export function transcribe(onText: (text: string, confidence?: number) => void, 
     onError(event.error === "not-allowed" || event.error === "service-not-allowed" ? "Microphone permission was denied. Allow microphone access and try again." : "Live transcription stopped. Please try Listen again.");
   };
   recognition.onend = () => {
-    if (shouldListen) recognition.start();
-    else onStatus("off");
+    if (!shouldListen) {
+      onStatus("off");
+      return;
+    }
+    try {
+      recognition.start();
+    } catch {
+      shouldListen = false;
+      onStatus("off");
+      onError("Live transcription could not restart. Please try Listen again.");
+    }
   };
   return {
     supported: true,
     start() {
+      if (shouldListen) return;
       shouldListen = true;
       onStatus("listening");
-      recognition.start();
+      try {
+        recognition.start();
+      } catch {
+        shouldListen = false;
+        onStatus("off");
+        onError("Live transcription could not start. Please try Listen again.");
+      }
     },
     stop() {
       shouldListen = false;

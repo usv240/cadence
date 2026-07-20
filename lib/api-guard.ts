@@ -75,14 +75,15 @@ export async function rejectRateLimited(request: Request, bucket: string): Promi
   const client = clientAddress(request);
 
   if (realModeEnabled()) {
-    // Never expose a paid API key when the cross-instance guard is unavailable.
-    if (!distributedRateLimit) return unavailableRateLimitResponse();
-    try {
-      const result = await distributedRateLimit.limit(`${bucket}:${client}`);
-      return result.success ? null : rateLimitResponse(result.reset);
-    } catch {
-      return unavailableRateLimitResponse();
+    if (distributedRateLimit) {
+      try {
+        const result = await distributedRateLimit.limit(`${bucket}:${client}`);
+        return result.success ? null : rateLimitResponse(result.reset);
+      } catch {
+        if (!isDevelopment()) return unavailableRateLimitResponse();
+      }
     }
+    if (!isDevelopment()) return unavailableRateLimitResponse();
   }
 
   const now = Date.now();

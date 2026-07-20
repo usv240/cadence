@@ -1,22 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-type Theme = "light" | "dark";
+import { applyTheme, preferredTheme, themeStorageKey, type Theme } from "@/lib/theme";
 
 export function LandingThemeToggle() {
   const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
-    const nextTheme: Theme = window.localStorage.getItem("cadence.theme") === "dark" ? "dark" : "light";
-    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+    const nextTheme = preferredTheme();
+    applyTheme(nextTheme);
     setTheme(nextTheme);
   }, []);
 
   const toggleTheme = () => {
     const nextTheme: Theme = theme === "dark" ? "light" : "dark";
-    document.documentElement.classList.toggle("dark", nextTheme === "dark");
-    window.localStorage.setItem("cadence.theme", nextTheme);
+    applyTheme(nextTheme);
+    window.localStorage.setItem(themeStorageKey, nextTheme);
     setTheme(nextTheme);
   };
 

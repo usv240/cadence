@@ -14,6 +14,7 @@ For a one-page version to print or attach to an email, use [Cadence Quick Start 
 2. If people around you are talking, tap **Listen**. Your browser may ask for microphone permission; choose Allow only if you want live captions.
 3. Wait for a line to appear under **What’s being said**. Cadence will prepare reply cards below it.
 4. Tap a reply card to speak it. If preview is turned on, you can read or edit it first.
+5. Choose **Show me how** from the welcome screen, or **Take a quick tour** in **More**, whenever you want a short guided explanation.
 
 That is enough to begin. You do not need to set up a voice, profile, or anything else before joining in.
 
@@ -112,8 +113,20 @@ Cadence supports touch, mouse, keyboard, and single-switch use.
 - Press **Space** or **Enter**, or use **Select highlighted**, to choose the focused item.
 - Adjust scan speed in **More ways to respond -> Set up**.
 
+### Eye-gaze focus (beta)
+
+Eye-gaze focus is optional and is designed as a focus aid, not an automatic speech system.
+
+1. Select **Eye gaze** beside **Listen**, then choose **Start local camera** only if you want to use it.
+2. Allow camera access and follow the five calibration targets.
+3. Look at a reply to highlight it. Cadence shows a confidence level so you can see when the estimate is less certain.
+4. Confirm the highlighted choice with **Space**, **Enter**, or **Select highlighted**. Looking at a card never speaks it automatically.
+5. Choose **Turn off now** whenever you want to stop camera use immediately.
+
+Camera frames and face landmarks are processed in the browser and are not uploaded or saved. Cadence stores only small local calibration values so the focus aid can work after a refresh. Keep touch, keyboard, switch, and quick-phrase controls available as your immediate fallback.
+
 ## A note for family, friends, and care teams
 
-You do not need special training to take part. Speak normally, leave a little space for the person to choose a reply, and let them decide what Cadence says. If a reply does not fit, wait for them to choose another one.
+You do not need special training to take part. Speak normally, leave a little space for the person to choose a reply, and let them decide what Cadence says. If a reply does not fit, wait for them to choose another one. Cadence offers a short tour for the person using it, but their family, friends, and care team do not need to learn a separate system.
 
 The point is not to speak for someone. It is to make room for their own words.

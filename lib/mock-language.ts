@@ -11,7 +11,7 @@ const transcriptLines: Omit<TranscriptTurn, "id" | "time">[] = [
 ];
 
 const tonePrefixes: Record<Tone, string[]> = {
-  warm: ["Warmly, ", "I like that — ", "That sounds good — ", "I'm on board — "],
+  warm: ["Warmly, ", "I like that, ", "That sounds good, ", "I'm on board, "],
   firm: ["Yes. ", "Let's do it. ", "I vote we make that happen. ", "Absolutely. "],
   funny: ["Plot twist: ", "Bold proposal: ", "For legal reasons, ", "My official position: "],
 };
@@ -38,14 +38,14 @@ export function mockPredict({ transcript, profile, memory, keyword, count = 4 }:
         ? [
           { text: `I'm ${name}. It's nice to meet you.`, intent: "react" as const },
           { text: "What should I call you?", intent: "ask" as const },
-          { text: `Just ${name} is perfect—my autograph is terrible anyway.`, intent: "joke" as const },
+          { text: `Just ${name} is perfect. My autograph is terrible anyway.`, intent: "joke" as const },
           { text: "I'm glad we're getting to talk.", intent: "agree" as const },
         ]
         : [
           { text: memory?.topics[0] ? `I was thinking about ${memory.topics[0]} after what you said about ${latest.replace(/[?!.]+$/, "").toLowerCase()}.` : `I was thinking about what you said about ${latest.replace(/[?!.]+$/, "").toLowerCase()}.`, intent: "react" as const },
           { text: "Could you say a little more about that?", intent: "ask" as const },
           { text: "That sounds like the kind of plot twist I can get behind.", intent: "joke" as const },
-          { text: "I hear you—thanks for sharing that.", intent: "agree" as const },
+          { text: "I hear you. Thanks for sharing that.", intent: "agree" as const },
         ];
   if (keyword?.trim()) candidates[0] = { text: `I keep thinking about ${keyword.trim()} in relation to that.`, intent: "react" };
   return candidates.slice(0, count);
