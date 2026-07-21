@@ -4,6 +4,12 @@
 
 When someone speaks, Cadence listens, prepares a few short replies in the user's voice, and makes them ready to speak with one tap. The user can also correct the context, hold their turn, express a need, or start a topic themselves.
 
+## Impact Thesis
+
+**The potential impact is not just faster text entry. It is helping a person be heard in the live moment, stay the author of their words, and initiate what matters to them.**
+
+Cadence is designed around four moments that can otherwise be lost in a fast conversation: responding before the topic changes, repairing a misunderstanding, expressing an essential need, and starting a conversation instead of only reacting.
+
 > Cadence is an early assistive communication prototype. It is not a medical device, emergency tool, or replacement for an AAC assessment, speech-language pathologist, or care plan.
 
 ## The Problem
@@ -24,12 +30,13 @@ Cadence is built around a different goal: **make the user's next turn ready befo
 | In the moment | How Cadence helps |
 | --- | --- |
 | Someone says something | Shows captions and prepares 3 to 4 reply options. |
-| A reply feels right | Tap it to preview or speak it. |
-| The caption is wrong | Use **Wrong context**, edit the caption, or rename the speaker locally. |
+| A reply feels right | Tap it to preview or speak it, then make it shorter, more like the user, saved, or rejected. |
+| A caption or reply is wrong | Use **Wrong context**, edit the caption, rename the speaker locally, or use editable repair phrases such as “Please repeat that.” |
 | The user needs time | Tap **Hold the floor** for a natural floor-holding phrase. |
-| The user has a need | Open **My needs** for editable care, comfort, and urgency phrases. |
+| The user has a need | Open **My needs** for editable care, comfort, and urgency phrases. A local help reminder can point to an existing plan, but Cadence never sends an alert. |
 | The user wants to lead | Choose **Start something** for user-led conversation openers. |
-| Internet is down | Use saved replies, needs, feelings, the backup board, and device voice. |
+| The user wants their wording respected | Use **Conversation setup** to choose a language and preserve wording without automatic translation or normalization. |
+| Internet is down | Use saved replies, needs, feelings, repair phrases, the backup board, and device voice. |
 
 ## Why It Matters
 
@@ -39,7 +46,7 @@ Many people with ALS eventually lose functional speech. AAC can be life-changing
 | --- | --- |
 | A long learning curve | Ready-to-tap replies, plain-language onboarding, and contextual help. |
 | High effort or eye-gaze fatigue | Large targets, low-effort quick phrases, and adjustable single-switch scanning. |
-| Partner-training burden | Conversation partners can talk normally while Cadence prepares choices. |
+| Partner-training burden | Conversation partners need no special app or account. A short optional guide helps them pause and leave authorship with the AAC user. |
 | Loss of agency | User-led openers, personal voice, editing, rejection, and context repair. |
 | A service or connection failure | Local fallback replies, device speech, a backup board, and saved essentials. |
 
@@ -63,6 +70,11 @@ See [competitive landscape and source boundaries](docs/COMPETITIVE-LANDSCAPE.md)
 | [ALS speech analysis study](https://pubmed.ncbi.nlm.nih.gov/37760880/) | Speech changes and speech loss are significant parts of ALS progression. | Captions plus user-controlled text-to-speech, with no requirement that the user speak to use Cadence. |
 | [Google SpeakFaster paper](https://research.google/pubs/using-large-language-models-to-accelerate-communication-for-eye-gaze-typing-users-with-als/) | Language models can reduce interaction effort for AAC communication. | Diverse structured reply choices, style-guided wording, and an internal tap-savings metric with a non-comparability caveat. |
 | [W3C WCAG 2.2](https://www.w3.org/TR/WCAG22/) | Target size, visible focus, keyboard operation, and clear status feedback are essential access requirements. | Large controls, focus rings, modal focus trapping, Escape support, keyboard navigation, live announcements, and responsive layouts. |
+| [Inclusive AAC UI co-design study](https://pubmed.ncbi.nlm.nih.gov/39868412/) | Iterative co-design can reveal access barriers that designer-only work misses. | Voluntary AAC-user, caregiver, and SLP feedback is a required validation step, not a claimed result. |
+| [AAC partner-instruction meta-analysis](https://www.tandfonline.com/doi/full/10.3109/07434618.2015.1052153) | Conversation partners can affect AAC communication outcomes. | A compact partner guide: no partner app or account, speak to the person, pause, and let the person decide. |
+| [ASHA multilingual service guidance](https://www.asha.org/practice-portal/professional-issues/multilingual-service-delivery/) | Communication assessment and support should consider linguistic and cultural context. | Device-local language choice and a preserve-wording setting. Cadence does not intentionally translate or normalize a person's dialect or code-switching. |
+| [Voice banking and identity in MND](https://pubmed.ncbi.nlm.nih.gov/33350040/) | Voice choices can be tied to identity and deserve personal control. | User-selectable speech voice and conversation kits that can retain a preferred voice. Cadence does not claim voice cloning. |
+| [ALS participation study](https://pubmed.ncbi.nlm.nih.gov/38837773/) | Communication impact is broader than raw speed. | Local participation signals for reply time, initiated topics, edits, rejections, and whether a reply sounded like the person. |
 
 ### Responsible use of research
 
@@ -72,6 +84,18 @@ See [competitive landscape and source boundaries](docs/COMPETITIVE-LANDSCAPE.md)
 - The SpeakFaster result is cited as context only. Cadence's local tap estimate uses a different method and is not a benchmark comparison.
 - Real usability feedback and accessibility testing remain necessary before broad public or clinical claims.
 
+## Future Prospects
+
+These are research-informed directions, not current product claims. They require participatory design, accessibility review, and reliable implementation before release.
+
+| Direction | Why it matters | What must happen first |
+| --- | --- | --- |
+| Participatory co-design | AAC users, family members, caregivers, and speech-language professionals can expose barriers that a developer-only process misses. | Run voluntary, consent-based sessions; document findings; iterate with participants. |
+| Stronger multilingual and cultural support | A person should be able to keep their language, dialect, and code-switching without unwanted normalization. | Expand language coverage with community review and language-specific testing. |
+| Voice identity options | A familiar or preferred speaking voice can be identity-sensitive. | Add only consent-based voice options with clear ownership, privacy, and safety controls. |
+| More reliable eye-gaze access | Camera gaze should reduce effort, not introduce fatigue or false selections. | Test target-based calibration, dwell settings, stability, and fatigue with real users; keep the feature beta until then. |
+| Better participation outcomes | A useful system should improve agency, repair, connection, and comfort, not only reduce taps. | Gather voluntary longitudinal feedback on response time, initiation, repairs, fatigue, and whether replies sound like the person. |
+| Care and urgent-need workflows | Users may need clear, tailored phrases during care or discomfort. | Co-design a configurable help board with care teams; Cadence will not claim alerting or emergency capability unless it is independently reliable. |
 ## How It Works
 
 ```mermaid
@@ -116,8 +140,8 @@ flowchart LR
 
 ### Fast and reliable expression
 
-- One-tap quick reactions, feelings, custom speech, **My needs**, and **Hold the floor**.
-- Editable needs and feelings persist locally.
+- One-tap quick reactions, feelings, repair phrases, custom speech, **My needs**, and **Hold the floor**.
+- Editable needs, feelings, and repair phrases persist locally. A personal help reminder can point to an existing care plan, but Cadence never contacts or alerts anyone.
 - The offline backup board keeps needs, feelings, favorites, and saved reply cards accessible without listening or AI.
 - **Instant device voice** gives fast browser speech. Selected OpenAI voices provide higher-quality streamed speech when online.
 - A 24-hour local session keeps the active transcript, staged replies, and Spoken log through a refresh.
@@ -250,7 +274,7 @@ npm run test:e2e
 
 - `npm run eval` runs three canned fixtures once and reports candidate count, intent diversity, and an internal tap/keystroke estimate.
 - The Google SpeakFaster 57% motor-action-savings result is shown only as context. Cadence's internal estimate is not a direct benchmark comparison.
-- `npm run test:e2e` runs the mock-mode Chromium flow for onboarding, personalization, vocabulary, kits, private session, context repair, needs, offline fallback, privacy controls, and API guards.
+- `npm run test:e2e` runs the mock-mode Chromium flow for onboarding, personalization, vocabulary, kits, private session, context repair, repair phrases, local help reminders, needs, offline fallback, privacy controls, and API guards.
 
 ## Current Limits and Next Validation
 

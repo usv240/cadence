@@ -97,6 +97,8 @@ html.dark .listen-toggle-on .listen-indicator { background: #b3f3df; }
 .landing-preview-inner, .landing-card, .landing-surface { border-color: #dce6df; background: #ffffff; }
 .landing-preview-status { border-color: #e3ebe6; color: #176746; }
 .landing-assurance { border-color: #b9ddc8; background: #eaf8ef; color: #205342; }
+.landing-impact-link { border-color: #b9ddc8; color: #176746; background: #ffffff; }
+.landing-impact-link:hover { background: #eaf8ef; }
 .landing-step { background: #e3f4eb; color: #176746; }
 .landing-inverse { background: #173d3a; color: #ffffff; }
 .landing-inverse-eyebrow { color: #b9d5c6; }
@@ -117,6 +119,8 @@ html.dark .landing-preview, html.dark .landing-card, html.dark .landing-surface 
 html.dark .landing-preview-inner { background: #121d2e !important; }
 html.dark .landing-preview-status { border-color: #3b4d69 !important; color: #70e0cb !important; }
 html.dark .landing-assurance { border-color: #3b4d69 !important; background: #182235 !important; color: #edf3fa !important; }
+html.dark .landing-impact-link { border-color: #4a5e7b !important; background: #182235 !important; color: #70e0cb !important; }
+html.dark .landing-impact-link:hover { background: #202d42 !important; }
 html.dark .landing-step { background: #263650 !important; color: #70e0cb !important; }
 html.dark .landing-inverse { background: #182235 !important; color: #ffffff !important; }
 html.dark .landing-inverse-eyebrow { color: #aabbd1 !important; }

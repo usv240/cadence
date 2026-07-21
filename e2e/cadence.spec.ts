@@ -191,6 +191,21 @@ test("needs phrases speak and appear in the spoken log", async ({ page }) => {
   await expect(page.getByText(/1 reply.*tap/)).toBeVisible();
 });
 
+test("repair phrases and a local help reminder remain user-controlled", async ({ page }) => {
+  await openFreshApp(page);
+  await skipOnboarding(page);
+
+  await page.getByRole("button", { name: /Repair a mix-up/ }).click();
+  await page.getByRole("button", { name: "Speak Please repeat that.", exact: true }).click();
+  await expect(page.locator("#spoken-log")).toContainText("Please repeat that.");
+
+  await page.getByRole("button", { name: "My needs" }).click();
+  await page.getByRole("button", { name: "Set a personal help reminder" }).click();
+  await expect(page.getByRole("heading", { name: "What should happen next?" })).toBeVisible();
+  await page.getByLabel("Your reminder").fill("Ask Sam to follow the plan by the phone.");
+  await page.getByRole("button", { name: "Save reminder" }).click();
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("cadence.helpPlan"))).toContain("Ask Sam");
+});
 test("offline mode offers local replies and conversation starters", async ({ page, context }) => {
   await openFreshApp(page);
   await skipOnboarding(page);

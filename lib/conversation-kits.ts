@@ -1,9 +1,11 @@
 import { sanitizeConversationSettings, type ConversationSettings } from "./conversation-settings";
+import { isTtsVoice, type TtsVoice } from "./voices";
 
 export type ConversationKit = {
   id: string;
   name: string;
   settings: ConversationSettings;
+  voice?: TtsVoice;
 };
 
 export const conversationKitsKey = "cadence.conversationKits";
@@ -19,6 +21,6 @@ export function sanitizeConversationKits(value: unknown): ConversationKit[] {
     const key = name.toLocaleLowerCase();
     if (!name || seen.has(key)) return [];
     seen.add(key);
-    return [{ id: typeof source.id === "string" && source.id ? source.id.slice(0, 80) : crypto.randomUUID(), name, settings: sanitizeConversationSettings(source.settings) }];
+    return [{ id: typeof source.id === "string" && source.id ? source.id.slice(0, 80) : crypto.randomUUID(), name, settings: sanitizeConversationSettings(source.settings), ...(isTtsVoice(source.voice) ? { voice: source.voice } : {}) }];
   }).slice(0, maxKits);
 }

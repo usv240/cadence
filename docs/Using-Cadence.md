@@ -16,7 +16,7 @@ For a one-page version to print or attach to an email, use [Cadence Quick Start 
 4. Tap a reply card to speak it. If preview is turned on, you can read or edit it first.
 5. Choose **Show me how** from the welcome screen, or **Take a quick tour** in **More**, whenever you want a short guided explanation.
 
-That is enough to begin. You do not need to set up a voice, profile, or anything else before joining in.
+That is enough to begin. You do not need to set up a voice, profile, or anything else before joining in. Conversation partners do not need a special app or account either.
 
 ## During a conversation
 
@@ -55,9 +55,13 @@ The **My needs** button is always available near the bottom of the screen. It op
 - “Please come here.”
 - “I need to be repositioned.”
 
-You can edit these phrases to fit your life. Keep this list personal and practical.
+You can edit these phrases to fit your life. Keep this list personal and practical. Cadence speaks the phrase only: it does not call, text, notify, or monitor anyone. Keep your usual care plan and a low-tech backup available.
 
 For a simple backup, use the small board icon beside **My needs**. It keeps your needs, feelings, and saved replies together—even when replies are unavailable.
+
+Use **Repair a mix-up** in **More ways to respond** for phrases such as “Please repeat that” or “That is not what I meant.” You can edit these phrases locally.
+
+In **My needs**, choose **Set a personal help reminder** to save a note about your existing care plan. Cadence does not call, text, alert, or monitor anyone.
 
 ## Make Cadence sound more like you
 
@@ -130,3 +134,16 @@ Camera frames and face landmarks are processed in the browser and are not upload
 You do not need special training to take part. Speak normally, leave a little space for the person to choose a reply, and let them decide what Cadence says. If a reply does not fit, wait for them to choose another one. Cadence offers a short tour for the person using it, but their family, friends, and care team do not need to learn a separate system.
 
 The point is not to speak for someone. It is to make room for their own words.
+
+## A 30-second tip for conversation partners
+
+Open **More**, then choose **For conversation partners** whenever someone wants a reminder. They do not need a special Cadence app or account.
+
+1. Speak to the person, not the screen.
+2. Pause after a thought so captions and choices can settle.
+3. Wait for the person's chosen words. Cadence never speaks a suggestion automatically.
+4. Ask if a caption or reply seems wrong. The person can repair it.
+
+## Language and wording
+
+In **Conversation setup**, choose a device language and use **Keep my wording and language** when you do not want Cadence to translate, normalize, or smooth out your wording. This is useful for multilingual conversations and code-switching.

@@ -27,14 +27,14 @@ declare global {
 
 export type BrowserTranscriber = { supported: boolean; start(): void; stop(): void };
 
-export function transcribeOnce(onText: (text: string) => void, onError: (message: string) => void): BrowserTranscriber {
+export function transcribeOnce(onText: (text: string) => void, onError: (message: string) => void, language = "en-US"): BrowserTranscriber {
   if (typeof window === "undefined") return { supported: false, start() {}, stop() {} };
   const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
   if (!Recognition) return { supported: false, start() { onError("Voice input is not supported in this browser. Type a short idea instead."); }, stop() {} };
   const recognition = new Recognition();
   recognition.continuous = false;
   recognition.interimResults = false;
-  recognition.lang = "en-US";
+  recognition.lang = language;
   let receivedText = false;
   recognition.onresult = (event) => {
     const text = event.results[event.resultIndex]?.[0]?.transcript.trim();
@@ -66,7 +66,7 @@ export function transcribeOnce(onText: (text: string) => void, onError: (message
   };
 }
 
-export function transcribe(onText: (text: string, confidence?: number) => void, onStatus: (status: LiveTranscriptionStatus) => void, onError: (message: string) => void, onInterim?: (text: string) => void): BrowserTranscriber {
+export function transcribe(onText: (text: string, confidence?: number) => void, onStatus: (status: LiveTranscriptionStatus) => void, onError: (message: string) => void, onInterim?: (text: string) => void, language = "en-US"): BrowserTranscriber {
   if (typeof window === "undefined") return { supported: false, start() {}, stop() {} };
   const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
   if (!Recognition) return { supported: false, start() { onStatus("unsupported"); }, stop() {} };
@@ -74,7 +74,7 @@ export function transcribe(onText: (text: string, confidence?: number) => void, 
   let shouldListen = false;
   recognition.continuous = true;
   recognition.interimResults = true;
-  recognition.lang = "en-US";
+  recognition.lang = language;
   recognition.onresult = (event) => {
     for (let index = event.resultIndex; index < event.results.length; index += 1) {
       const result = event.results[index];

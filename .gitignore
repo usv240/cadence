@@ -28,3 +28,6 @@ test-results/
 tmp/
 
 .vercel
+
+DEMO-SCRIPT.local.md
+docs/DEMO-PLAN.md

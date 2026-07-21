@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { validateString, validateTranscript } from "../lib/api-guard";
 import { defaultConversationSettings, sanitizeConversationSettings } from "../lib/conversation-settings";
+import { sanitizeConversationKits } from "../lib/conversation-kits";
 import { buildGazeCalibration, estimateGazePoint, sanitizeEyeGazeSettings } from "../lib/eye-gaze";
 import { LOCAL_SESSION_TTL_MS, readLocalSession } from "../lib/local-session";
 import { emptyConversationMemory, updateConversationMemory, validateConversationMemory } from "../lib/memory";
+import { defaultRepairPhrases, sanitizeRepairPhrases } from "../lib/repair-phrases";
+import { sanitizeHelpPlan } from "../lib/help-plan";
+import { summarizeParticipation } from "../lib/participation";
 
 const now = 1_720_000_000_000;
 
@@ -43,6 +47,14 @@ test("conversation settings discard unsafe values and normalize personal lists",
   assert.equal(settings.privateSession, true);
 });
 
+test("conversation settings preserve valid language preferences and kits retain a valid voice", () => {
+  const settings = sanitizeConversationSettings({ language: "es-ES", preserveWording: false });
+  assert.equal(settings.language, "es-ES");
+  assert.equal(settings.preserveWording, false);
+  assert.equal(sanitizeConversationSettings({ language: "not-a-language" }).language, "en-US");
+  const kits = sanitizeConversationKits([{ id: "family", name: "Family", settings, voice: "marin" }]);
+  assert.equal(kits[0]?.voice, "marin");
+});
 test("local memory keeps distinct people and useful topics within its cap", () => {
   const memory = updateConversationMemory(emptyConversationMemory, [
     { speaker: "Maya", text: "Maya mentioned a picnic and gardening today." },
@@ -74,4 +86,29 @@ test("model input validation rejects oversized or incomplete context", () => {
   assert.equal(validateTranscript([]), "transcript is required.");
   assert.equal(validateTranscript(Array.from({ length: 21 }, () => ({ speaker: "Room", text: "Hello" }))), "transcript must contain 20 turns or fewer.");
   assert.equal(validateString("x".repeat(41), 40, "keyword"), "keyword must contain 40 characters or fewer.");
+});
+
+test("repair phrases and help plans stay local, bounded, and usable", () => {
+  const phrases = sanitizeRepairPhrases(["Please repeat that.", "please repeat that.", "Let me clarify."]);
+  assert.deepEqual(phrases, ["Please repeat that.", "Let me clarify."]);
+  assert.deepEqual(sanitizeRepairPhrases([]), defaultRepairPhrases);
+  assert.equal(sanitizeHelpPlan({ instruction: "Ask Sam to follow the care plan." }).instruction, "Ask Sam to follow the care plan.");
+  assert.equal(sanitizeHelpPlan({ instruction: 42 }).instruction, "");
+});
+
+test("participation summary tracks agency signals beyond typing speed", () => {
+  const summary = summarizeParticipation([
+    { kind: "spoken", at: now, responseSeconds: 8 },
+    { kind: "initiated", at: now },
+    { kind: "edited", at: now },
+    { kind: "rejected", at: now },
+    { kind: "rated_like_me", at: now },
+    { kind: "rated_not_me", at: now },
+  ]);
+  assert.equal(summary.replies, 1);
+  assert.equal(summary.initiated, 1);
+  assert.equal(summary.edited, 1);
+  assert.equal(summary.rejected, 1);
+  assert.equal(summary.averageResponseSeconds, 8);
+  assert.equal(summary.soundsLikeMePercent, 50);
 });

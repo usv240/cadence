@@ -1,5 +1,7 @@
 export type ConversationMode = "family" | "care" | "doctor" | "work" | "friends";
 export type EnergyLevel = "low" | "normal" | "good";
+export const supportedLanguages = ["en-US", "es-ES", "fr-FR", "hi-IN"] as const;
+export type ConversationLanguage = typeof supportedLanguages[number];
 
 export type ConversationSettings = {
   mode: ConversationMode;
@@ -9,6 +11,8 @@ export type ConversationSettings = {
   phrasesToAvoid: string[];
   scanIntervalMs: number;
   privateSession: boolean;
+  language: ConversationLanguage;
+  preserveWording: boolean;
 };
 
 export const defaultConversationSettings: ConversationSettings = {
@@ -19,6 +23,8 @@ export const defaultConversationSettings: ConversationSettings = {
   phrasesToAvoid: [],
   scanIntervalMs: 1200,
   privateSession: false,
+  language: "en-US",
+  preserveWording: true,
 };
 
 const maxItems = 12;
@@ -47,6 +53,8 @@ export function sanitizeConversationSettings(value: unknown): ConversationSettin
     phrasesToAvoid: cleanList(source.phrasesToAvoid),
     scanIntervalMs: scanIntervals.includes(source.scanIntervalMs as typeof scanIntervals[number]) ? source.scanIntervalMs as number : defaultConversationSettings.scanIntervalMs,
     privateSession: Boolean(source.privateSession),
+    language: supportedLanguages.includes(source.language as ConversationLanguage) ? source.language as ConversationLanguage : defaultConversationSettings.language,
+    preserveWording: source.preserveWording !== false,
   };
 }
 
@@ -57,6 +65,8 @@ export function settingsToContext(settings: ConversationSettings) {
     peopleHere: settings.peopleHere,
     topicsToAvoid: settings.topicsToAvoid,
     phrasesToAvoid: settings.phrasesToAvoid,
+    language: settings.language,
+    preserveWording: settings.preserveWording,
   };
 }
 
