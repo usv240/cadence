@@ -2,7 +2,7 @@ const isDevelopment = process.env.NODE_ENV !== "production";
 const distDir = process.env.NEXT_DIST_DIR;
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://va.vercel-scripts.com${isDevelopment ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://va.vercel-scripts.com 'wasm-unsafe-eval'${isDevelopment ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
